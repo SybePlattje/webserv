@@ -3,7 +3,7 @@
 class Location
 {
 	public:
-		enum class AllowanceTypes
+		enum class Methods
 		{
 			GET,
 			POST,
@@ -12,7 +12,7 @@ class Location
 		Location(/* args */);
 		~Location();
 	private:
-		bool 		allow_methods_[3];
+		bool 		methods_[3];
 		bool		auto_index_;
 		// int			nested_level_;
 		std::string index_;

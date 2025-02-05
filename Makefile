@@ -28,7 +28,7 @@ CFLAGS += -std=c++98
 endif
 
 ifdef NOUNUSED
-CFLAGS += -Wno-unused-value -Wunused-value 
+CFLAGS += -Wno-unused-value -Wunused-value
 CFLAGS += -Wno-unused-variable -Wno-unused-parameter
 endif
 

@@ -4,6 +4,6 @@
 *.a
 *.o
 *.dSYM
-test
+test*
 *.idea
 *cmake-build-debug
