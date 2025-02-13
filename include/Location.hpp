@@ -8,25 +8,20 @@
 class Location
 {
 	public:
-		enum class Methods
-		{
-			GET,
-			POST,
-			DELETE
-		};
-	
-		Location();
+		Location(const std::string& path);
 		~Location();
 	
-		void parseLocation(std::istringstream &iss);
-		bool isMethodAllowed(Methods method) const;
-	
+		void parse(std::istream& stream);
+		void printLocation() const; // For debugging
+
 	private:
-		bool methods_[3];
-		bool auto_index_;
-		std::string index_;
-	
-		Methods stringToMethod(const std::string &method);
+		std::string					path_;
+		std::string					root_;
+		std::string					index_;
+		std::vector<std::string>	allowed_methods_;
+		bool						autoindex_;
+
+		std::vector<std::string> tokenize(const std::string& line);
 };
 
 #endif
