@@ -43,24 +43,29 @@ void Config::setConfigData(const std::string &fileContents)
 
 void Config::parseLine(const std::string &line)
 {
-	std::istringstream iss(line);
-	std::string key, value;
-	iss >> key >> value;
+	std::istringstream	iss(line);
+	std::string			key;
+	iss >> key;
 
 	if (key == "server_name")
-		server_name_ = value;
+		iss >> server_name_;
 	else if (key == "host")
-		host_ = value;
+		iss >> host_;
 	else if (key == "listen")
-		listen_ = std::stoi(value);
+		iss >> listen_;
 	else if (key == "root")
-		root_ = value;
+		iss >> root_;
 	else if (key == "index")
-		index_ = value;
-	else if (key == "error_page_404")
-		error_page_404_ = value;
+		iss >> index_;
+	else if (key == "error_page")
+	{
+		uint code;
+		std::string filepath;
+		iss >> code >> filepath;
+		error_pages_[code] = filepath;
+	}
 	else if (key == "client_max_body_size")
-		client_max_body_size_ = std::stoi(value);
+		iss >> client_max_body_size_;
 	else if (key == "location")
 	{
 		Location loc;
@@ -80,7 +85,11 @@ void Config::printConfig() const
 			  << "Listen Port: " << listen_ << "\n"
 			  << "Root: " << root_ << "\n"
 			  << "Index: " << index_ << "\n"
-			  << "Error Page 404: " << error_page_404_ << "\n"
-			  << "Client Max Body Size: " << client_max_body_size_ << "\n"
+			  << "Error Pages: \n";
+	for (const auto &entry : error_pages_)
+	{
+		std::cout << "  Code " << entry.first << ": " << entry.second << "\n";
+	}
+	std::cout << "Client Max Body Size: " << client_max_body_size_ << "\n"
 			  << "Number of Locations: " << locations_.size() << std::endl;
 }

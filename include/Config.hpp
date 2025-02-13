@@ -7,6 +7,7 @@
 # include <sstream>
 # include <string>
 # include <stdexcept>
+# include <map>
 # include "Location.hpp"
 
 # define DEFAULT_CONFIG "./webserv.conf"
@@ -19,14 +20,14 @@ class Config
 	
 		void printConfig() const; // For debugging purposes;
 	private:
-		std::string				server_name_;
-		std::string 			host_;
-		int						listen_;
-		std::string				root_;
-		std::string 			index_;
-		std::string 			error_page_404_;
-		int						client_max_body_size_;
-		std::vector<Location>	locations_;
+		std::string					server_name_;
+		std::string 				host_;
+		uint						listen_;
+		std::string					root_;
+		std::string 				index_;
+		std::map<uint, std::string>	error_pages_;
+		uint						client_max_body_size_;
+		std::vector<Location>		locations_;
 		
 		void setConfigData(const std::string &fileContents);
 		void parseLine(const std::string &line);
