@@ -13,70 +13,31 @@
  */
 Config::Config(const char *argv)
 {
-	std::stringstream	inputbuffer;
+	std::string			line, block;
 	const std::string 	path_to_config = argv ? argv : DEFAULT_CONFIG;
-	std::ifstream		inputfile(path_to_config);
+	std::ifstream		configFile(path_to_config);
 
-	if (!inputfile.is_open())
+	if (!configFile.is_open())
+		throw std::runtime_error("Unable to open configuration file: " + path_to_config);
+	while (getline(configFile, line))
 	{
-		throw std::runtime_error("Config file not found: " + path_to_config);
+		if (isCommentOrEmpty(line))
+			continue ;
+		if (line.find("{") != std::string::npos)
+		{
+			std::string blockType = extractBlockType(line);
+			if (blockType == "server")
+			{
+				parseServerBlock(configFile);
+			}
+			else
+				throw std::runtime_error("Unsupported block type: " + blockType);
+		}
 	}
-	inputbuffer << inputfile.rdbuf();
-	inputfile.close();
-	setConfigData(inputbuffer.str());
+	configFile.close();
 }
 
 Config::~Config() {}
-
-void Config::setConfigData(const std::string &fileContents)
-{
-	std::istringstream stream(fileContents);
-	std::string line;
-
-	while (std::getline(stream, line))
-	{
-		if (line.empty() || line[0] == '#') // Ignore empty lines and comments
-			continue;
-		parseLine(line);
-	}
-}
-
-void Config::parseLine(const std::string &line)
-{
-	std::istringstream	iss(line);
-	std::string			key;
-	iss >> key;
-
-	if (key == "server_name")
-		iss >> server_name_;
-	else if (key == "host")
-		iss >> host_;
-	else if (key == "listen")
-		iss >> listen_;
-	else if (key == "root")
-		iss >> root_;
-	else if (key == "index")
-		iss >> index_;
-	else if (key == "error_page")
-	{
-		uint code;
-		std::string filepath;
-		iss >> code >> filepath;
-		error_pages_[code] = filepath;
-	}
-	else if (key == "client_max_body_size")
-		iss >> client_max_body_size_;
-	else if (key == "location")
-	{
-		Location loc;
-		loc.parseLocation(iss); // Parses remaining values in line
-		locations_.push_back(loc);
-	}
-	else
-	{
-		throw std::runtime_error("Unknown directive in config file: " + key);
-	}
-}
 
 void Config::printConfig() const
 {
@@ -92,4 +53,83 @@ void Config::printConfig() const
 	}
 	std::cout << "Client Max Body Size: " << client_max_body_size_ << "\n"
 			  << "Number of Locations: " << locations_.size() << std::endl;
+}
+
+void Config::parseServerBlock(std::istream& stream)
+{
+	std::string line;
+
+	while (getline(stream, line))
+	{
+		if (line.find("}") != std::string::npos) break; // End of block
+
+		std::vector<std::string> tokens = tokenize(line);
+		if (tokens.empty())
+			continue ;
+
+		const std::string& key = tokens[0];
+		if (key == "listen")
+			listen_ = std::stoi(tokens[1]);
+		else if (key == "server_name")
+			server_name_ = tokens[1];
+		else if (key == "host")
+			host_ = tokens[1];
+		else if (key == "root")
+			root_ = tokens[1];
+		else if (key == "index")
+			index_ = tokens[1];
+		else if (key == "error_page")
+			error_pages_[std::stoi(tokens[1])] = tokens[2];
+		else if (key == "location")
+			parseLocationBlock(stream, tokens[1]);
+		else if (key == "client_max_body_size")
+			client_max_body_size_ = std::stoi(tokens[1]);
+		else
+			throw std::runtime_error("Unknown directive: " + key);
+	}
+}
+
+void Config::parseLocationBlock(std::istream& stream, const std::string& path)
+{
+	Location	loc(path);
+
+	loc.parse(stream);
+	locations_.push_back(loc);
+}
+
+
+std::vector<std::string> Config::tokenize(const std::string& line)
+{
+    std::istringstream			iss(line);
+    std::vector<std::string>	tokens;
+    std::string					token;
+
+    while (iss >> token)
+	{
+		
+		// Temporary solution (TODO: use trailing semicolon to check correct parsing)
+		if (!token.empty() && token.back() == ';')
+			token.pop_back();
+		// \end temp
+
+        if (token[0] == '#') // Ignore comments in the middle of lines
+			break;
+        tokens.push_back(token);
+    }
+    return tokens;
+}
+
+bool Config::isCommentOrEmpty(const std::string& line)
+{
+	return line.empty() || line[0] == '#';
+}
+
+
+std::string Config::extractBlockType(const std::string& line)
+{
+	std::istringstream	blockStream(line.substr(0, line.find("{")));
+	std::string			blockType;
+
+	blockStream >> blockType;
+	return blockType;
 }

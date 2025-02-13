@@ -1,57 +1,63 @@
 #include "Location.hpp"
 
-Location::Location() : auto_index_(false)
-{
-	methods_[0] = false; // GET
-	methods_[1] = false; // POST
-	methods_[2] = false; // DELETE
-}
+Location::Location(const std::string& path) : path_(path), autoindex_(false) {}
 
 Location::~Location() {}
 
-void Location::parseLocation(std::istringstream &iss)
+void Location::parse(std::istream& stream)
 {
-	std::string token;
-	while (iss >> token)
+	std::string	line;
+
+	while (getline(stream, line))
 	{
-		if (token == "methods")
+		if (line.find("}") != std::string::npos) break;  // End of location block
+
+		std::vector<std::string> tokens = tokenize(line);
+		if (tokens.empty())
+			continue;
+
+		const std::string& key = tokens[0];
+		if (key == "root")
+			root_ = tokens[1];
+		else if (key == "index")
+			index_ = tokens[1];
+		else if (key == "allow_methods")
 		{
-			std::string method;
-			while (iss >> method && method != ";") // Assuming semicolon ends list
-			{
-				Methods m = stringToMethod(method);
-				methods_[static_cast<int>(m)] = true;
-			}
+			for (size_t i = 1; i < tokens.size(); ++i)
+				allowed_methods_.push_back(tokens[i]);
 		}
-		else if (token == "autoindex")
-		{
-			std::string value;
-			iss >> value;
-			auto_index_ = (value == "on");
-		}
-		else if (token == "index")
-		{
-			iss >> index_;
-		}
-		else
-		{
-			throw std::runtime_error("Unknown location directive: " + token);
-		}
+		else if (key == "autoindex")
+			autoindex_ = (tokens[1] == "on");
 	}
 }
 
-bool Location::isMethodAllowed(Methods method) const
+std::vector<std::string> Location::tokenize(const std::string& line)
 {
-	return methods_[static_cast<int>(method)];
+	std::istringstream			iss(line);
+	std::vector<std::string>	tokens;
+	std::string					token;
+
+    while (iss >> token)
+	{
+		// Temporary solution (TODO: use trailing semicolon to check correct parsing)
+		if (!token.empty() && token.back() == ';')
+			token.pop_back();
+		// \end temp
+
+        if (token[0] == '#') // Ignore comments in the middle of lines
+			break; 
+        tokens.push_back(token);
+    }
+    return tokens;
 }
 
-Location::Methods Location::stringToMethod(const std::string &method)
+void Location::printLocation() const
 {
-	if (method == "GET")
-		return Methods::GET;
-	if (method == "POST")
-		return Methods::POST;
-	if (method == "DELETE")
-		return Methods::DELETE;
-	throw std::runtime_error("Invalid HTTP method in location block: " + method);
+	std::cout << "Location Path: " << path_ << "\n"
+			  << "Root: " << root_ << "\n"
+			  << "Index: " << index_ << "\n"
+			  << "Allowed Methods: ";
+	for (const auto& method : allowed_methods_)
+		std::cout << method << " ";
+	std::cout << "\nAutoindex: " << (autoindex_ ? "on" : "off") << std::endl;
 }
