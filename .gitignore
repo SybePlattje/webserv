@@ -40,3 +40,4 @@
 test*
 *.idea
 *cmake-build-debug
+webserv
