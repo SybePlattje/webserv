@@ -4,6 +4,24 @@ Location::Location(const std::string& path) : path_(path), autoindex_(false) {}
 
 Location::~Location() {}
 
+Location::Location(const Location& other)
+{
+	*this = other;
+}
+
+Location& Location::operator=(const Location& other)
+{
+	if (this != &other)
+	{
+		path_ = other.path_;
+		root_ = other.root_;
+		index_ = other.index_;
+		allowed_methods_ = other.allowed_methods_;
+		autoindex_ = other.autoindex_;
+	}
+	return *this;
+}
+
 void Location::parse(std::istream& stream)
 {
 	std::string	line;
@@ -60,4 +78,29 @@ void Location::printLocation() const
 	for (const auto& method : allowed_methods_)
 		std::cout << method << " ";
 	std::cout << "\nAutoindex: " << (autoindex_ ? "on" : "off") << std::endl;
+}
+
+const std::string& Location::getPath() const
+{
+	return path_;
+}
+
+const std::string& Location::getRoot() const
+{
+	return root_;
+}
+
+const std::string& Location::getIndex() const
+{
+	return index_;
+}
+
+const std::vector<std::string>& Location::getAllowedMethods() const
+{
+	return allowed_methods_;
+}
+
+bool Location::getAutoindex() const
+{
+	return autoindex_;
 }

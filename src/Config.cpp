@@ -39,6 +39,27 @@ Config::Config(const char *argv)
 
 Config::~Config() {}
 
+Config::Config(const Config& other)
+{
+	*this = other;
+}
+
+Config& Config::operator=(const Config& other)
+{
+	if (this != &other)
+	{
+		server_name_ = other.server_name_;
+		host_ = other.host_;
+		listen_ = other.listen_;
+		root_ = other.root_;
+		index_ = other.index_;
+		error_pages_ = other.error_pages_;
+		client_max_body_size_ = other.client_max_body_size_;
+		locations_ = other.locations_;
+	}
+	return *this;
+}
+
 void Config::printConfig() const
 {
 	std::cout << "Server Name: " << server_name_ << "\n"
@@ -132,4 +153,44 @@ std::string Config::extractBlockType(const std::string& line)
 
 	blockStream >> blockType;
 	return blockType;
+}
+
+const uint& Config::getListen()
+{
+	return listen_;
+}
+
+const std::string& Config::getServerName()
+{
+	return server_name_;
+}
+
+const std::string& Config::getHost()
+{
+	return host_;
+}
+
+const std::string& Config::getRoot()
+{
+	return root_;
+}
+
+const std::string& Config::getIndex()
+{
+	return index_;
+}
+
+const std::map<uint, std::string>& Config::getErrorPages()
+{
+	return error_pages_;
+}
+
+const uint& Config::getClientMaxBodySize()
+{
+	return client_max_body_size_;
+}
+
+const std::vector<Location>& Config::getLocations()
+{
+	return locations_;
 }
