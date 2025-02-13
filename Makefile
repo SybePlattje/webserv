@@ -37,7 +37,7 @@ endif
 
 all: $(NAME)
 
-$(NAME): $(OBJECTS) $(Directories)
+$(NAME): directories $(OBJECTS)
 	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $(OBJECTS)
 	@$(MAKE) message EXECUTABLE=$@
 
