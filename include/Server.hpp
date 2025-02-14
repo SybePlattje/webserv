@@ -1,5 +1,5 @@
-#ifndef HANDLEIO_HPP
-# define HANDLEIO_HPP
+#ifndef SERVER_HPP
+# define SERVER_HPP
 
 # define MAX_EVENTS 10
 # define BUFFER_SIZE 1024
@@ -14,13 +14,13 @@
 struct e_ErrorInfo 
 {
 	std::string message;
-	int returnValue;
+	int return_value;
 };
 
 class Server
 {
 	public:
-		Server(std::string serverIp, int serverPort);
+		Server(Config& config);
 		~Server();
 		int	setupEpoll();
 	private:
@@ -28,34 +28,36 @@ class Server
 		std::unordered_map<int, e_ErrorInfo> 	error_map_;
 		int 									server_fd_;
 		int										epoll_fd_;
+		Config&									config_;
 
-		int				createServerSocket(int port, const std::string& serverIP);
-		sockaddr_in		setServerAddr(const std::string& serverIP, int port);
-		int 			bindServerSocket(sockaddr_in& serverAddr);
+		int				createServerSocket(uint port, const std::string& server_ip);
+		sockaddr_in		setServerAddr(const std::string& server_ip, uint port);
+		int 			bindServerSocket(sockaddr_in& server_addr);
 		int 			listenServer();
-		int 			checkEvent(epoll_event events, std::string& method, std::string& source, std::string& httpVersion, bool& chunked);
+		int 			checkEvent(epoll_event events, std::string& method, std::string& source, std::string& http_version, bool& chunked);
 		void			setNonBlocking(int fd);
 		bool			fileExists(const std::string& path);
-		void			sendResponse(int clientFd, const std::string& status, const std::string& content, bool& chunked);
-		void			handleResponse(int clientFd, epoll_event* event, std::string& method, std::string& source, std::string& httpVersion, bool& chunked);
-		int				handleClient(int clientFd, bool& chunked);
-		void			closeFd(int serverFd = -1, int epollFd = -1, int clientFd = -1);
+		void			sendResponse(int client_fd, const std::string& status, const std::string& content, bool& chunked);
+		void			handleResponse(int client_fd, epoll_event* event, std::string& method, std::string& source, std::string& http_version, bool& chunked);
+		int				handleClient(int client_fd, bool& chunked);
+		void			closeFd(int fd_a = -1, int fd_b = -1, int fd_c = -1);
 		int				listenLoop();
 		int				setupConnection();
 		int				checkErrno(int err, int fd = -1, epoll_event events = {});
 		void			fillErrorMap();
-		int				doEpollCtl(int mode, int clientFd, epoll_event* event);
+		int				doEpollCtl(int mode, int client_fd, epoll_event* event);
 		bool			filePermission(const std::string& path);
-		std::string 	readRequest(int clientFd, std::string& method, std::string& source, std::string& httpVersion, bool& chunked);
-		std::string		handleContentLength(size_t contentLengthPos, std::string& headers, std::string& requestBuffer, size_t bodyStart, int clientFd, char buffer[BUFFER_SIZE]);
-		std::string		handleChunkedRequest(size_t bodyStart, std::string& requestBuffer, int clientFd, char buffer[]);
-		int 			useRevc(int clientFd, char buffer[], std::string& requestBuffer);
-		int				doClientModification(int clientFd, epoll_event* event, const std::string& status, const std::string& location, bool& chunked);
-		int 			doClientDelete(int clientFd, const std::string& status, const std::string location, epoll_event* event, bool& chunked);
-		void			setMethodSourceHttpVerion(std::string& method, std::string& source, std::string& httpVersion, std::string& requestBuffer);
-		void			sendChunkedResponse(int clientFd, std::ifstream& fileStream);
-		void			sendFile(int clientFd, std::ifstream& fileStream);
-		std::string		getContentType(const std::string& filePath);
+		std::string 	readRequest(int client_fd, std::string& method, std::string& source, std::string& http_version, bool& chunked);
+		std::string		handleContentLength(size_t content_length_pos, std::string& headers, std::string& request_buffer, size_t body_start, int client_fd, char buffer[]);
+		std::string		handleChunkedRequest(size_t body_start, std::string& request_buffer, int clientFd, char buffer[]);
+		int 			useRevc(int client_fd, char buffer[], std::string& requestBuffer);
+		int				doClientModification(int client_fd, epoll_event* event, const std::string& status, const std::string& location, bool& chunked);
+		int 			doClientDelete(int client_fd, const std::string& status, const std::string location, epoll_event* event, bool& chunked);
+		void			setMethodSourceHttpVerion(std::string& method, std::string& source, std::string& http_version, std::string& request_buffer);
+		void			sendChunkedResponse(int client_fd, std::ifstream& file_stream);
+		void			sendFile(int client_fd, std::ifstream& file_stream);
+		std::string		getContentType(const std::string& file_path);
+		void setupResponse(int client_fd, std::string status, bool& chunked, epoll_event* event, std::map<uint, std::string>& error_pages, uint error_number, std::string location = "");
 };
 
 #endif

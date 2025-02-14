@@ -11,10 +11,10 @@
 #include <sstream>
 #include <sys/stat.h>
 
-Server::Server(std::string serverIP, int serverPort)
+Server::Server(Config& config) : config_(config)
 {
 	fillErrorMap();
-	if (createServerSocket(serverPort, serverIP) != 0)
+	if (createServerSocket(config.getListen(), config_.getHost()) != 0)
 		throw std::runtime_error("failed to setup server socket");
 }
 
@@ -45,8 +45,11 @@ int Server::setupEpoll()
 		closeFd(epoll_fd_, server_fd_);
 		return nr;
 	}
-	if (listenLoop() == -2)
-		return -2;
+	nr = listenLoop();
+	if (nr < 0)
+	{
+		return nr;
+	}
 	return 0;
 }
 
@@ -56,20 +59,20 @@ int Server::setupEpoll()
  * @brief Sets the socket for the server up and makes it so it's up and running
  * 
  * @param port what port there will be listened on
- * @param serverIP the ip address of the server
+ * @param server_ip the ip address of the server
  * @return 0 on success,
  * @return -1 on error,
  * @return -2 on critical error
  */
-int Server::createServerSocket(int port, const std::string& serverIP)
+int Server::createServerSocket(uint port, const std::string& server_ip)
 {
 	server_fd_ = socket(AF_INET, SOCK_STREAM, 0);
 	if (server_fd_ == -1)
 		return 1;
 	int opt = 1;
 	setsockopt(server_fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-	sockaddr_in serverAddr = setServerAddr(serverIP, port);
-	int nr = bindServerSocket(serverAddr);
+	sockaddr_in server_addr = setServerAddr(server_ip, port);
+	int nr = bindServerSocket(server_addr);
 	if (nr != 0)
 		return nr;
 	nr = listenServer();
@@ -82,30 +85,30 @@ int Server::createServerSocket(int port, const std::string& serverIP)
 /**
  * @brief creates the socket address of the server 
  * 
- * @param serverIP the string of the ip address of the server
+ * @param server_ip the string of the ip address of the server
  * @param port on what port the server will be active
  * @return sockaddr_in server address
  */
-sockaddr_in Server::setServerAddr(const std::string& serverIP, int port)
+sockaddr_in Server::setServerAddr(const std::string& server_ip, uint port)
 {
-	sockaddr_in serverAddr{};
-	serverAddr.sin_family = AF_INET;
-	serverAddr.sin_addr.s_addr = inet_addr(serverIP.c_str());
-	serverAddr.sin_port = htons(port);
-	return serverAddr;
+	sockaddr_in server_addr{};
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_addr.s_addr = inet_addr(server_ip.c_str());
+	server_addr.sin_port = htons(port);
+	return server_addr;
 }
 
 /**
  * @brief binds the server socket and the server address together
  * 
- * @param serverAddr the server socket address
+ * @param server_addr the server socket address
  * @return 0 on success,
  * @return -1 on error,
  * @return -2 on critical error
  */
-int Server::bindServerSocket(sockaddr_in& serverAddr)
+int Server::bindServerSocket(sockaddr_in& server_addr)
 {
-	if (bind(server_fd_, (sockaddr*)&serverAddr, sizeof(serverAddr)) < 0)
+	if (bind(server_fd_, (sockaddr*)&server_addr, sizeof(server_addr)) < 0)
 	{
 		int nr = checkErrno(errno);
 		closeFd(server_fd_);
@@ -146,9 +149,9 @@ void Server::setNonBlocking(int fd)
 /**
  * @brief closes file descripters, sockets, epoll
  * 
- * @param fdA optinal file descripter A
- * @param fdB optinal file descripter B
- * @param fdC optinal file descripter C
+ * @param fd_a optinal file descripter A
+ * @param fd_b optinal file descripter B
+ * @param fd_c optinal file descripter C
  */
 void Server::closeFd(int fd_a, int fd_b, int fd_c)
 {
@@ -168,7 +171,7 @@ void Server::closeFd(int fd_a, int fd_b, int fd_c)
 int Server::listenLoop()
 {
 	epoll_event events[MAX_EVENTS];
-	std::string method, source, http_version;
+	std::string method, source, http_version = "";
 	bool chunked = false;
 	while (true)
 	{
@@ -265,21 +268,21 @@ int Server::checkErrno(int err, int fd, epoll_event events)
 	std::unordered_map<int, e_ErrorInfo>::iterator it = error_map_.find(err);
 	if (it != error_map_.end())
 	{
-		std::cerr << error_map_.at(err).message << std::endl;
+		std::cerr << it->second.message << std::endl;
 		if (err == EEXIST)
 		{
 			if (doEpollCtl(EPOLL_CTL_MOD, fd, &events) != 0)
-				return it->second.returnValue;
+				return it->second.return_value;
 			return 0;
 		}
 		else if (err == ENOENT)
 		{
 			if (doEpollCtl(EPOLL_CTL_ADD, fd, &events) != 0)
-				return it->second.returnValue;
+				return it->second.return_value;
 			return 0;
 		}
 		else if (err == 0) {}
-		return it->second.returnValue;
+		return it->second.return_value;
 	}
 	std::cerr << "Unknown error: " << strerror(err) << std::endl;
 	return -1;
@@ -385,11 +388,11 @@ int Server::doClientDelete(int client_fd, const std::string& status, const std::
  * @param client_fd the file descriptor of the client
  * @param method will hold what method was used for this request
  * @param source will hold the end point requested by the client
- * @param httpVersion will hold what http version the client used
+ * @param http_version will hold what http version the client used
  * @param chunked will be true if the response needs to be chunked
  * @return the parsed body 
  */
-std::string Server::readRequest(int client_fd, std::string& method, std::string& source, std::string& httpVersion, bool& chunked)
+std::string Server::readRequest(int client_fd, std::string& method, std::string& source, std::string& http_version, bool& chunked)
 {
 	char buffer[BUFFER_SIZE];
 	std::string request_buffer;
@@ -398,24 +401,24 @@ std::string Server::readRequest(int client_fd, std::string& method, std::string&
 	{
 		request_buffer.append(buffer, bytes_received);
 		// check if headers are fully received
-		size_t headerEnd = request_buffer.find("\r\n\r\n");
-		if (headerEnd != std::string::npos)
+		size_t header_end = request_buffer.find("\r\n\r\n");
+		if (header_end != std::string::npos)
 		{
-			setMethodSourceHttpVerion(method, source, httpVersion, request_buffer);
-			std::string headers = request_buffer.substr(0, headerEnd);
+			setMethodSourceHttpVerion(method, source, http_version, request_buffer);
+			std::string headers = request_buffer.substr(0, header_end);
 			std::string body;
-			size_t bodyStart = headerEnd + 4; // Skip \r\n\r\n
+			size_t body_start = header_end + 4; // Skip \r\n\r\n
 			// check if it's chunked transfer encoding
 			if (headers.find("Transfer-Encoding: chunked") != std::string::npos || headers.find("TE: chunked") != std::string::npos)
 			{
 				chunked = true;
-				return handleChunkedRequest(bodyStart, request_buffer, client_fd, buffer);
+				return handleChunkedRequest(body_start, request_buffer, client_fd, buffer);
 			}
 			// Handle Content-Length
-			size_t contentLengthPos = headers.find("Content-Length: ");
-			if (contentLengthPos != std::string::npos)
+			size_t content_length_pos = headers.find("Content-Length: ");
+			if (content_length_pos != std::string::npos)
 			{
-				return handleContentLength(contentLengthPos, headers, request_buffer, bodyStart, client_fd, buffer);
+				return handleContentLength(content_length_pos, headers, request_buffer, body_start, client_fd, buffer);
 			}
 			return request_buffer;
 		}
@@ -549,49 +552,107 @@ std::string Server::handleContentLength(size_t content_length_pos, std::string& 
 void Server::handleResponse(int client_fd, epoll_event* event, std::string& method, std::string& source, std::string& http_version, bool& chunked)
 {
 	std::string file_path;
-	if (source == "/")
-	{
-		file_path = "./example/index.html"; // change later to file from location
-	}
-	else if (source == "/main.css")
-	{
-		file_path = "./example/errorPages/main.css";
-	}
-	else
-	{
-		file_path = source;
-	}
-	// if auto indexing is on and standard file doesn't exist it should show folder structure from that location
+	std::string root_path = config_.getRoot();
+	std::string main_index = config_.getIndex();
+	std::vector<Location> locations = config_.getLocations();
+	std::map<uint, std::string> error_pages = config_.getErrorPages();
+	std::vector<Location>::iterator location_it = locations.begin();
+	std::vector<Location>::iterator location_ite = locations.end();
+
 	if (http_version != "HTTP/1.1")
 	{
-		sendResponse(client_fd, "505 HTTP Version Not Supported", "./example/errorPages/505.html", chunked); // change later to predefined locations or use fallbacks
-	}
-	if (method != "GET" && method != "POST") // change later to check against alowed methods from location
-	{
-		sendResponse(client_fd, "400 Bad Request", "./example/errorPages/400.html", chunked);
-		doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
-		close(client_fd);
+		setupResponse(client_fd, "505 HTTP Version Not Supported", chunked, event, error_pages, 505);
 		return;
 	}
-	// if method is post and client_max_body_size is set check if request is bigger that. Return 413 if true
+	while (location_it != location_ite)
+	{
+		std::string location = location_it->getPath();
+		if (location == source)
+		{
+			if (location == "/")
+				file_path = root_path + main_index;
+			else
+				file_path = root_path + location_it->getIndex();
+			break;
+		}
+		++location_it;
+	}
+	if (file_path.empty())
+	{
+		setupResponse(client_fd, "404 Not Found", chunked, event, error_pages, 404);
+		return;
+	}
+	
+	std::vector<std::string>::const_iterator method_it = location_it->getAllowedMethods().begin();
+	std::vector<std::string>::const_iterator method_ite = location_it->getAllowedMethods().end();
+	while (method_it != method_ite)
+	{
+		if (method_it->empty())
+		{
+			setupResponse(client_fd, "500 Internal Server Error", chunked, event, error_pages, 500);
+			return;
+		}
+		if (method_it->compare(method) == 0)
+			break;
+		++method_it;
+	}
+	if (method_it == method_ite)
+	{
+		setupResponse(client_fd, "400 Bad Request", chunked, event, error_pages, 400);
+		return;
+	}
+
 	if (fileExists(file_path))
 	{
 		if (filePermission(file_path))
 		{
-			sendResponse(client_fd, "200 OK", file_path, chunked);
+			setupResponse(client_fd, "200 OK", chunked, event, error_pages, 200, file_path);
+			return;
 		}
 		else
 		{
-			sendResponse(client_fd, "403 Forbidden", "./example/errorPages/403.html", chunked);
+			setupResponse(client_fd, "403 Forbidden", chunked, event, error_pages, 403);
+			return;
 		}
 	}
 	else
 	{
-		sendResponse(client_fd, "404 Not Found", "./example/errorPages/404.html", chunked);
+		setupResponse(client_fd, "404 Not Found", chunked, event, error_pages, 404);
+		return;
 	}
-	doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
-	closeFd(client_fd);
-	return;
+	// if auto indexing is on and standard file doesn't exist it should show folder structure from that location
+}
+
+void Server::setupResponse(int client_fd, std::string status, bool& chunked, epoll_event* event, std::map<uint, std::string>& error_pages, uint number, std::string location)
+{
+	if (number == 200)
+	{
+		sendResponse(client_fd, status, location, chunked);
+		doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
+		close(client_fd);
+		return;
+	}
+	else
+	{
+		std::map<uint, std::string>::iterator error_page = error_pages.find(number);
+		if (error_page == error_pages.end())
+		{
+			std::string fall_back = "example/errorPages/";
+			fall_back.append(std::to_string(number));
+			fall_back.append(".html");
+			sendResponse(client_fd, status, fall_back, chunked);
+			doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
+			close(client_fd);
+		}
+		else
+		{
+			location.insert(0UL, config_.getRoot());
+			sendResponse(client_fd, status, location + error_page->second, chunked);
+			doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
+			close(client_fd);
+			return;
+		}
+	}
 }
 
 /**
