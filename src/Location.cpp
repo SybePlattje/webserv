@@ -28,9 +28,9 @@ void Location::parse(std::istream& stream)
 
 	while (getline(stream, line))
 	{
-		if (line.find("}") != std::string::npos) break;  // End of location block
-
-		std::vector<std::string> tokens = tokenize(line);
+		if (ConfigUtils::isEndOfBlock(line))
+			break;
+		std::vector<std::string> tokens = ConfigUtils::tokenize(line);
 		if (tokens.empty())
 			continue;
 
@@ -46,27 +46,16 @@ void Location::parse(std::istream& stream)
 		}
 		else if (key == "autoindex")
 			autoindex_ = (tokens[1] == "on");
+		else if (key == "return")
+			return_ = tokens[1];
+		else if (ConfigUtils::isCommentOrEmpty(tokens[0]))
+			continue;
+		else
+		{
+			throw std::runtime_error("Config: Unsupported block type" + line);
+			break;
+		}
 	}
-}
-
-std::vector<std::string> Location::tokenize(const std::string& line)
-{
-	std::istringstream			iss(line);
-	std::vector<std::string>	tokens;
-	std::string					token;
-
-    while (iss >> token)
-	{
-		// Temporary solution (TODO: use trailing semicolon to check correct parsing)
-		if (!token.empty() && token.back() == ';')
-			token.pop_back();
-		// \end temp
-
-        if (token[0] == '#') // Ignore comments in the middle of lines
-			break; 
-        tokens.push_back(token);
-    }
-    return tokens;
 }
 
 void Location::printLocation() const
@@ -93,6 +82,11 @@ const std::string& Location::getRoot() const
 const std::string& Location::getIndex() const
 {
 	return index_;
+}
+
+const std::string& Location::getReturn() const
+{
+	return return_;
 }
 
 const std::vector<std::string>& Location::getAllowedMethods() const

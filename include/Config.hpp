@@ -8,6 +8,7 @@
 # include <string>
 # include <stdexcept>
 # include <map>
+# include "ConfigUtils.hpp"
 # include "Location.hpp"
 
 # define DEFAULT_CONFIG "./webserv.conf"
@@ -22,7 +23,6 @@ class Config
 
 		const uint& getListen();
 		const std::string& getServerName();
-		const std::string& getHost();
 		const std::string& getRoot();
 		const std::string& getIndex();
 		const std::map<uint, std::string>& getErrorPages();
@@ -33,18 +33,14 @@ class Config
 	private:
 		uint						listen_;
 		std::string					server_name_;
-		std::string					host_;
 		std::string					root_;
 		std::string					index_;
 		std::map<uint, std::string>	error_pages_;
 		uint						client_max_body_size_;
 		std::vector<Location>		locations_;
 		
-		std::vector<std::string> tokenize(const std::string& line);
 		void parseServerBlock(std::istream& stream);
 		void parseLocationBlock(std::istream& stream, const std::string& path);
-		bool isCommentOrEmpty(const std::string& line);
-		std::string extractBlockType(const std::string& line);
 
 };
 

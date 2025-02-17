@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include "ConfigUtils.hpp"
 
 class Location
 {
@@ -17,6 +18,8 @@ class Location
 		const std::string& getPath() const;
 		const std::string& getRoot() const;
 		const std::string& getIndex() const;
+		const std::string& getReturn() const;
+		
 		const std::vector<std::string>& getAllowedMethods() const;
 		bool getAutoindex() const;
 		void printLocation() const; // For debugging
@@ -25,6 +28,7 @@ class Location
 		std::string					path_;
 		std::string					root_;
 		std::string					index_;
+		std::string					return_;
 		std::vector<std::string>	allowed_methods_;
 		bool						autoindex_;
 
