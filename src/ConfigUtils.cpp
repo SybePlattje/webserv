@@ -121,3 +121,5 @@ bool isEndOfBlock(const std::string &line)
     std::string trimmed = trimWhitespace(line.substr(0, line.find("#")));
     return trimmed == "}";
 }
+
+} // namespace ConfigUtils
