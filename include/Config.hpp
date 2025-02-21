@@ -47,8 +47,23 @@ private:
     bool has_index_;
     bool has_client_max_body_size_;
 
+    // File parsing
+    void parseConfigFile(const std::string& path_to_config);
+    void handleConfigLine(const std::string& line, bool& foundServerBlock, std::istream& stream);
+    void handleBlockStart(const std::string& line, bool& foundServerBlock, std::istream& stream);
+
+    // Block parsing
     void parseServerBlock(std::istream& stream);
     void parseLocationBlock(std::istream& stream, const std::string& path);
+    void handleServerDirective(const std::string& line, const std::vector<std::string>& tokens, std::istream& stream);
+
+    // Directive handlers
+    void handleListenDirective(const std::vector<std::string>& tokens);
+    void handleServerNameDirective(const std::vector<std::string>& tokens);
+    void handleRootDirective(const std::vector<std::string>& tokens);
+    void handleIndexDirective(const std::vector<std::string>& tokens);
+    void handleErrorPageDirective(const std::vector<std::string>& tokens);
+    void handleClientMaxBodySizeDirective(const std::vector<std::string>& tokens);
     
     // Validation helpers
     void validatePort(const uint port);
@@ -56,6 +71,8 @@ private:
     void validateRequiredDirectives() const;
     void checkDirectiveNotSet(const std::string& directive, bool has_directive) const;
     void validateArgs(const std::string& directive, const std::vector<std::string>& tokens, size_t expected);
+    void validateErrorCode(const std::string& code);
+    void validateBlockStructure(const std::string& line, bool isOpening);
 };
 
 #endif
