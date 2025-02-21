@@ -25,9 +25,15 @@ Config::Config(const char *argv)
                 foundServerBlock = true;
                 parseServerBlock(configFile);
             }
+            else if (blockType == "location")
+                throw std::runtime_error("Config: Location blocks must be inside server block");
             else
                 throw std::runtime_error("Config: Unsupported block type: " + blockType);
         }
+        else if (line.find("}") != std::string::npos)
+            throw std::runtime_error("Config: Unexpected closing brace outside of block");
+        else if (!ConfigUtils::isCommentOrEmpty(line))
+            throw std::runtime_error("Config: Directives must be inside server block");
     }
     
     if (!foundServerBlock)
@@ -93,10 +99,18 @@ void Config::validateArgs(const std::string& directive, const std::vector<std::s
 
 void Config::parseServerBlock(std::istream& stream) {
     std::string line;
+    bool hasClosingBrace = false;
 
     while (getline(stream, line)) {
-        if (ConfigUtils::isEndOfBlock(line))
+        if (ConfigUtils::isCommentOrEmpty(line))
+            continue;
+
+        if (line.find("}") != std::string::npos) {
+            if (line.find("{") != std::string::npos)
+                throw std::runtime_error("Config: Invalid block format - opening and closing brace on same line");
+            hasClosingBrace = true;
             break;
+        }
 
         std::vector<std::string> tokens = ConfigUtils::tokenize(line);
         if (tokens.empty())
@@ -104,7 +118,15 @@ void Config::parseServerBlock(std::istream& stream) {
 
         const std::string& directive = tokens[0];
         try {
-            if (directive == "listen") {
+            if (line.find("{") != std::string::npos) {
+                if (directive != "location")
+                    throw std::runtime_error("Config: Unexpected block in server context: " + directive);
+                if (tokens.size() < 2)
+                    throw std::runtime_error("Invalid number of arguments for location directive");
+                validatePath(tokens[1]);
+                parseLocationBlock(stream, tokens[1]);
+            }
+            else if (directive == "listen") {
                 validateArgs(directive, tokens, 2);
                 checkDirectiveNotSet(directive, has_listen_);
                 listen_ = std::stoi(tokens[1]);
@@ -138,14 +160,6 @@ void Config::parseServerBlock(std::istream& stream) {
                 validatePath(tokens[2]);
                 error_pages_[errorCode] = tokens[2];
             }
-            else if (directive == "location") {
-                if (tokens.size() < 2)
-                    throw std::runtime_error("Invalid number of arguments for location directive");
-                validatePath(tokens[1]);
-                if (line.find("{") == std::string::npos)
-                    throw std::runtime_error("Missing opening brace for location block");
-                parseLocationBlock(stream, tokens[1]);
-            }
             else if (directive == "client_max_body_size") {
                 validateArgs(directive, tokens, 2);
                 checkDirectiveNotSet(directive, has_client_max_body_size_);
@@ -162,6 +176,9 @@ void Config::parseServerBlock(std::istream& stream) {
             throw std::runtime_error("Config: Value out of range for directive " + directive);
         }
     }
+
+    if (!hasClosingBrace)
+        throw std::runtime_error("Config: Missing closing brace for server block");
 }
 
 void Config::parseLocationBlock(std::istream& stream, const std::string& path) {
