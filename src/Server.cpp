@@ -11,10 +11,19 @@
 #include <sstream>
 #include <sys/stat.h>
 
+void handlePostResponse(int clientSocket, std::map<e_RequestKeys, std::string> request_buffer);
+
 Server::Server(Config& config) : config_(config)
 {
 	fillErrorMap();
-	if (createServerSocket(config.getListen(), config_.getHost()) != 0)
+	std::string server_name = config_.getServerName();
+	if (server_name == "localhost")
+		server_name = "127.0.0.1";
+	main_index_ = config_.getIndex();
+	root_path_ = config_.getRoot();
+	locations_ = config.getLocations();
+	error_pages_ = config.getErrorPages();
+	if (createServerSocket(config.getListen(), server_name) != 0)
 		throw std::runtime_error("failed to setup server socket");
 }
 
@@ -36,24 +45,93 @@ int Server::setupEpoll()
 		closeFd(server_fd_);
 		return nr;
 	}
+
 	epoll_event event{};
 	event.events = EPOLLIN;
 	event.data.fd = server_fd_;
+	
 	int nr = doEpollCtl(EPOLL_CTL_ADD, server_fd_, &event);
 	if (nr != 0)
 	{
 		closeFd(epoll_fd_, server_fd_);
 		return nr;
 	}
+
+	nr = setupPipe();
+	if (nr < 0)
+	{
+		closeFd(epoll_fd_, server_fd_);
+		return nr;
+	}
+
+	nr = putCoutCerrInEpoll();
+	if (nr < 0)
+	{
+		closeFd(epoll_fd_, server_fd_);
+		return nr;
+	}
+
 	nr = listenLoop();
 	if (nr < 0)
 	{
+		closeFd(stdout_pipe_[0], stderr_pipe_[0]);
+		closeFd(epoll_fd_, server_fd_);
 		return nr;
 	}
+
+	closeFd(stdout_pipe_[0], stderr_pipe_[0]);
 	return 0;
 }
 
 //private functions
+
+/**
+ * @brief puts the standard outpute and standard error file descriptor in the epoll
+ * 
+ * @return 0 when done,
+ * @return -1 on error,
+ * @return -2 on critical error
+ */
+int Server::putCoutCerrInEpoll()
+{
+	struct epoll_event std_event;
+	std_event.events = EPOLLIN;
+	std_event.data.fd = stdout_pipe_[0];
+	int nr = doEpollCtl(EPOLL_CTL_ADD, stdout_pipe_[0], &std_event);
+	if (nr < 0)
+		return nr;
+
+	std_event.data.fd = stderr_pipe_[0];
+	nr = doEpollCtl(EPOLL_CTL_ADD, stderr_pipe_[0], &std_event);
+	if (nr < 0)
+		return nr;
+	return 0;
+}
+
+/**
+ * @brief makes the pipes for the standard output and the standard error so we can capture it with epoll
+ * 
+ * @return 0 when done,
+ * @return -1 on pipe error
+ */
+int Server::setupPipe()
+{
+	if (pipe(stdout_pipe_) == -1 || pipe(stderr_pipe_) == -1)
+		return -1;
+	
+	setNonBlocking(stdout_pipe_[0]);
+	setNonBlocking(stdout_pipe_[1]);
+	setNonBlocking(stderr_pipe_[0]);
+	setNonBlocking(stderr_pipe_[1]);
+
+	dup2(stdout_pipe_[1], STDOUT_FILENO);
+	dup2(stderr_pipe_[1], STDERR_FILENO);
+
+	closeFd(stdout_pipe_[1], stderr_pipe_[1]);
+
+	std::cout.setf(std::ios::unitbuf);
+	return 0;
+}
 
 /**
  * @brief Sets the socket for the server up and makes it so it's up and running
@@ -333,13 +411,21 @@ void Server::fillErrorMap()
  */
 int Server::handleClient(int client_fd, bool& chunked)
 {
+	if (client_fd == stdout_pipe_[0] || client_fd == stderr_pipe_[0])
+		return 0;
 	epoll_event event{};
 	event.events = EPOLLOUT;
 	event.data.fd = client_fd;
 	if (!request_buffer_.empty())
+	{
+		// std::cout << "handle client request buffer not empty" << std::endl;
 		return doClientModification(client_fd, &event, "500 Internal Server Error", "./example/errorPages/500.html", chunked);
+	}
 	else
+	{
+		std::cerr << "handle client request buffer empty\n";
 		return doClientDelete(client_fd, "500 Internal Server Error", "./example/errorPages/500.html", &event, chunked);
+	}
 }
 
 /**
@@ -366,7 +452,7 @@ int Server::doClientModification(int client_fd, epoll_event* event, const std::s
 }
 
 /**
- * @brief tries to di the EPOLL_CTL_DEL operation on the clientFd
+ * @brief tries to do the EPOLL_CTL_DEL operation on the clientFd
  * 
  * @param client_fd the file descriptor we try to delete out of epoll
  * @param status the status code we send to the client
@@ -383,6 +469,30 @@ int Server::doClientDelete(int client_fd, const std::string& status, const std::
 }
 
 /**
+ * @brief logs the messages of cout and cerr and prints them to the logs
+ * 
+ * @param msg the message to be printed
+ * @param fd the current file discriptor
+ */
+void Server::logMsg(const char *msg, int fd)
+{
+	std::string file;
+	if (fd == stdout_pipe_[0])
+		file = STANDARD_LOG_FILE;
+	else
+		file = STANDARD_ERROR_LOG_FILE;
+	if (mkdir("logs", 0777) < 0 && errno != EEXIST)
+	{
+		std::cerr << "mkdir() error: " << strerror(errno) << std::endl;
+		return;
+	}
+	file.insert(0, "logs/");
+	int file_fd = open(file.c_str(), O_CREAT | O_APPEND | O_WRONLY, S_IRUSR | S_IWUSR);
+	write(file_fd, msg, strlen(msg));
+	close(file_fd);
+}
+
+/**
  * @brief reads the data the client sends and if needed un chunks the body
  * 
  * @param client_fd the file descriptor of the client
@@ -396,7 +506,11 @@ std::string Server::readRequest(int client_fd, std::string& method, std::string&
 {
 	char buffer[BUFFER_SIZE];
 	std::string request_buffer;
-	ssize_t bytes_received;
+	ssize_t bytes_received = 0;
+
+	if (client_fd == stdout_pipe_[0] || client_fd == stderr_pipe_[0])
+		return handleCoutErrOutput(client_fd);
+
 	while((bytes_received = recv(client_fd, buffer, BUFFER_SIZE, 0)) > 0)
 	{
 		request_buffer.append(buffer, bytes_received);
@@ -404,10 +518,16 @@ std::string Server::readRequest(int client_fd, std::string& method, std::string&
 		size_t header_end = request_buffer.find("\r\n\r\n");
 		if (header_end != std::string::npos)
 		{
+			std::cout << request_buffer << std::endl;
+			setContentTypeRequest(request_buffer, header_end);
+
 			setMethodSourceHttpVerion(method, source, http_version, request_buffer);
+
 			std::string headers = request_buffer.substr(0, header_end);
-			std::string body;
+			request_[REQUEST_HEADER] = headers;
+
 			size_t body_start = header_end + 4; // Skip \r\n\r\n
+
 			// check if it's chunked transfer encoding
 			if (headers.find("Transfer-Encoding: chunked") != std::string::npos || headers.find("TE: chunked") != std::string::npos)
 			{
@@ -417,13 +537,68 @@ std::string Server::readRequest(int client_fd, std::string& method, std::string&
 			// Handle Content-Length
 			size_t content_length_pos = headers.find("Content-Length: ");
 			if (content_length_pos != std::string::npos)
-			{
 				return handleContentLength(content_length_pos, headers, request_buffer, body_start, client_fd, buffer);
-			}
 			return request_buffer;
 		}
 	}
+	std::cerr << "read request empty at end\n";
 	return "";
+}
+
+/**
+ * @brief looks into the client request and sets the Content-Type
+ * 
+ * @param request_buffer th string holding the request from the client
+ * @param header_end position of the end of the request header
+ * @return 0 when done,
+ * @return -1 if request_buffer doesn't have "Content-Type: "
+ */
+int Server::setContentTypeRequest(std::string request_buffer, size_t header_end)
+{
+	size_t request_type_pos= request_buffer.find("Content-Type: ");
+	if (request_type_pos != std::string::npos)
+	{
+		request_type_pos += 14; // skip past "Content-type: "
+		size_t end = request_buffer.substr(request_type_pos, header_end - request_type_pos).length();
+		request_[REQUEST_TYPE] = request_buffer.substr(request_type_pos, end);
+		return 0;
+	}
+	return -1;
+}
+
+/**
+ * @brief reads into the buffer of what is needed to be printed to the logs
+ * 
+ * @param client_fd the file discriptor of the standard output or standard error
+ * @return empty string when done
+ */
+std::string Server::handleCoutErrOutput(int client_fd)
+{
+	ssize_t bytes_received = 0;
+	std::string request_buffer;
+	char buffer[BUFFER_SIZE];
+	if (client_fd == stdout_pipe_[0])
+	{
+		while ((bytes_received = read(client_fd, buffer, BUFFER_SIZE -1)) > 0)
+		{
+			buffer[bytes_received] = '\0';
+			request_buffer.append(buffer, bytes_received);
+		}
+		request_buffer.insert(0, "[Captured stdcout: ]");
+		logMsg(request_buffer.c_str(), client_fd);
+		return "";
+	}
+	else
+	{
+		while ((bytes_received = read(client_fd, buffer, BUFFER_SIZE -1)) > 0)
+		{
+			buffer[bytes_received] = '\0';
+			request_buffer.append(buffer, bytes_received);
+		}
+		request_buffer.insert(0, "[Captured stdcerr]: ");
+		logMsg(request_buffer.c_str(), client_fd);
+		return "";
+	}
 }
 
 /**
@@ -453,9 +628,7 @@ int Server::useRevc(int client_fd, char buffer[], std::string& request_buffer)
 {
 	size_t bytes_recieved = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
 	if (bytes_recieved <= 0)
-	{
 		return -1;
-	}
 	try
 	{
 		request_buffer.append(buffer, bytes_recieved);
@@ -487,10 +660,7 @@ std::string Server::handleChunkedRequest(size_t body_start, std::string& request
 		size_t chunk_size_end = request_buffer.find("\r\n", pos);
 		if (chunk_size_end == std::string::npos)
 		{
-			if (useRevc(client_fd, buffer, request_buffer) == -1)
-			{
-				break;
-			}
+			if (useRevc(client_fd, buffer, request_buffer) == -1) break;
 			continue;
 		}
 		std::string chunkSizeHex = request_buffer.substr(pos, chunk_size_end - pos);
@@ -499,12 +669,7 @@ std::string Server::handleChunkedRequest(size_t body_start, std::string& request
 		if (chunk_size == 0) break; // end of chunks
 		// Ensure full chunk is recieved
 		while (request_buffer.size() < pos + chunk_size + 2)
-		{
-			if (useRevc(client_fd, buffer, request_buffer) == -1)
-			{
-				return "";
-			}
-		}
+			if (useRevc(client_fd, buffer, request_buffer) == -1) return "";
 		// Extract chunk data
 		std::string chunk_data = request_buffer.substr(pos, chunk_size);
 		decoded_body.append(chunk_data);
@@ -530,12 +695,8 @@ std::string Server::handleContentLength(size_t content_length_pos, std::string& 
 	size_t end = headers.find("\r\n", start);
 	int contentLength = std::stoi(headers.substr(start, end - start));
 	while (request_buffer.size() < body_start + contentLength)
-	{
-		if(useRevc(client_fd, buffer, request_buffer) == -1)
-		{
-			break;
-		}
-	}
+		if(useRevc(client_fd, buffer, request_buffer) == -1) break;
+	request_[REQUEST_BODY].append(request_buffer.substr(body_start, contentLength));
 	return request_buffer.substr(body_start, contentLength);
 }
 
@@ -548,49 +709,128 @@ std::string Server::handleContentLength(size_t content_length_pos, std::string& 
  * @param source wheat source is used by the client
  * @param http_version what http version is used by the client
  * @param chunked if the response needs to be chunked or not
+ * @return 0 when client response has been send,
+ * @return -1 on errors
  */
-void Server::handleResponse(int client_fd, epoll_event* event, std::string& method, std::string& source, std::string& http_version, bool& chunked)
+int Server::handleResponse(int client_fd, epoll_event* event, std::string& method, std::string& source, std::string& http_version, bool& chunked)
 {
 	std::string file_path;
-	std::string root_path = config_.getRoot();
-	std::string main_index = config_.getIndex();
-	std::vector<Location> locations = config_.getLocations();
-	std::map<uint, std::string> error_pages = config_.getErrorPages();
-	std::vector<Location>::iterator location_it = locations.begin();
-	std::vector<Location>::iterator location_ite = locations.end();
+	std::vector<Location>::iterator location_it = locations_.begin();
+	std::vector<Location>::iterator location_ite = locations_.end();
 
+	int nr = checkHTTPVersion(http_version, client_fd, chunked, event);
+	if (nr != 1)
+		return nr;
+	
+	nr = checkLocations(location_it, location_ite, file_path, source, client_fd, chunked, event);
+	if (nr != 1)
+		return nr;
+
+
+	nr = checkAllowedMethods(location_it, client_fd, chunked, event, method);
+	if (nr != 1)
+		return nr;
+
+
+	nr = checkFile(file_path, client_fd, chunked, event, location_it);
+	if (nr != 1)
+		return nr;
+	return 0;
+	// if auto indexing is on and standard file doesn't exist it should show folder structure from that location
+}
+
+/**
+ * @brief checks if the client used the HTTP/1.1 version
+ * 
+ * @param http_version the HTTP version the client used
+ * @param client_fd the file descriptor of the client
+ * @param chunked flag if the response is chunked or not
+ * @param event the events of the current client
+ * @return 1 if version is correct,
+ * @return 0 if version was incorect and response was send to the client,
+ * @return -1 if the version was incorrect and the send response to the client failed
+ */
+int Server::checkHTTPVersion(std::string& http_version, int client_fd, bool& chunked, epoll_event* event)
+{
 	if (http_version != "HTTP/1.1")
 	{
-		setupResponse(client_fd, "505 HTTP Version Not Supported", chunked, event, error_pages, 505);
-		return;
+		if (setupResponse(client_fd, "505 HTTP Version Not Supported", chunked, event, error_pages_, 505) == -1)
+			return -1;
+		return 0;
 	}
+	return 1;
+}
+
+/**
+ * @brief checks if the location the client wants is known by us as by the config file
+ * 
+ * @param location_it begin of the vector holding the locations info
+ * @param location_ite end of the vector holding the locations info
+ * @param file_path the end file we will use to send to the client
+ * @param source the location requested by the client
+ * @param client_fd file descriptor of the client
+ * @param chunked flag if the response is chunked or not
+ * @param event the events of the client
+ * @return 1 when location in source is found,
+ * @return 0, if location was not found, but response was send to client
+ * @return -1 if location was not found, and response to the client failed
+ */
+int Server::checkLocations(std::vector<Location>::iterator& location_it, std::vector<Location>::iterator& location_ite, std::string& file_path, std::string source, int client_fd, bool& chunked, epoll_event* event)
+{
 	while (location_it != location_ite)
 	{
 		std::string location = location_it->getPath();
 		if (location == source)
 		{
 			if (location == "/")
-				file_path = root_path + main_index;
+				file_path = root_path_ + main_index_;
 			else
-				file_path = root_path + location_it->getIndex();
+			{
+				if (location[0] == '/' && location.find(".") == std::string::npos)
+				{
+					location = location.substr(1, location.size() - 1);
+					file_path = root_path_ + location + '/' + location_it->getIndex();
+				}
+				else
+					file_path = root_path_ + location_it->getIndex();
+			}
 			break;
 		}
 		++location_it;
 	}
 	if (file_path.empty())
 	{
-		setupResponse(client_fd, "404 Not Found", chunked, event, error_pages, 404);
-		return;
+		if (setupResponse(client_fd, "404 Not Found", chunked, event, error_pages_, 404) == -1)
+			return -1;
+		return 0;
 	}
-	
+	return 1;
+}
+
+/**
+ * @brief checks if the requested method is allouwed on the current method
+ * 
+ * @param location_it the info of the location as provided by the config file
+ * @param client_fd file descriptor of the client
+ * @param chunked flag if the response is chunked
+ * @param event the events of the client
+ * @param method the method the client used
+ * @return 1 when method is allouwed,
+ * @return 0 when method is not allouwed, and response is send to the client,
+ * @return -1  when method is not allouwed, and response to the client failed
+ */
+int Server::checkAllowedMethods(std::vector<Location>::iterator& location_it, int client_fd, bool& chunked, epoll_event* event, std::string& method)
+{
 	std::vector<std::string>::const_iterator method_it = location_it->getAllowedMethods().begin();
 	std::vector<std::string>::const_iterator method_ite = location_it->getAllowedMethods().end();
 	while (method_it != method_ite)
 	{
 		if (method_it->empty())
 		{
-			setupResponse(client_fd, "500 Internal Server Error", chunked, event, error_pages, 500);
-			return;
+			std::cerr << "handle respone request buffer not empty";
+			if (setupResponse(client_fd, "500 Internal Server Error", chunked, event, error_pages_, 500) == -1)
+				return -1;
+			return 0;
 		}
 		if (method_it->compare(method) == 0)
 			break;
@@ -598,39 +838,110 @@ void Server::handleResponse(int client_fd, epoll_event* event, std::string& meth
 	}
 	if (method_it == method_ite)
 	{
-		setupResponse(client_fd, "400 Bad Request", chunked, event, error_pages, 400);
-		return;
+		if (setupResponse(client_fd, "400 Bad Request", chunked, event, error_pages_, 400) == -1)
+		{
+			if (setupResponse(client_fd, "500 Internal Server Error", chunked, event, error_pages_, 500) == -1)
+				close(client_fd);
+			return -1;
+		}
+		return 0;
 	}
+	return 1;
+}
 
+/**
+ * @brief checks if the file request by the client exist and if we have permissions to open it
+ * 
+ * @param file_path the path to the file we want to check
+ * @param client_fd the file descriptor of the client
+ * @param chunked flag if the response is chunked
+ * @param event the events of the client
+ * @param location_it for fallback check if for the file
+ * @return 1 when response is send to the client,
+ * @return -1 on send error
+ */
+int Server::checkFile(std::string& file_path, int client_fd, bool& chunked, epoll_event* event, std::vector<Location>::iterator& location_it)
+{
 	if (fileExists(file_path))
 	{
 		if (filePermission(file_path))
 		{
-			setupResponse(client_fd, "200 OK", chunked, event, error_pages, 200, file_path);
-			return;
+			std::cout << "file_path: " << file_path << std::endl;
+			return fileResponseSetup(client_fd, "200 OK", chunked, event, 200, file_path);
 		}
 		else
+			return fileResponseSetup(client_fd, "403 Forbidden", chunked, event, 403);
+	}
+	else if (fileExists(root_path_ + location_it->getIndex()))
+	{
+		if (filePermission(root_path_ + location_it->getIndex()))
+			return fileResponseSetup(client_fd, "200 OK", chunked, event, 200, root_path_ + location_it->getIndex());
+		else
+			return fileResponseSetup(client_fd, "403 Forbidden", chunked, event, 403);
+	}
+	else
+	{
+		std::cerr << "file_path: \"" << file_path << "\" not found\n";
+		return fileResponseSetup(client_fd, "404 Not Found", chunked, event, 404);
+	}
+}
+
+/**
+ * @brief sets up the response for file persittion function
+ * 
+ * @param client_fd the file descriptor of the client
+ * @param code_string the code text needed in the header
+ * @param chunked flag if the response is chunked
+ * @param event the events of the client
+ * @param code what response code is used
+ * @param location optional location of file
+ * @return 1 when response is send,
+ * @return -1 when send fails
+ */
+int Server::fileResponseSetup(int client_fd, std::string code_string, bool& chunked, epoll_event* event, uint code, std::string location)
+{
+	if (code == 200)
+	{
+		if (setupResponse(client_fd, code_string, chunked, event, error_pages_, code, location))
 		{
-			setupResponse(client_fd, "403 Forbidden", chunked, event, error_pages, 403);
-			return;
+			if (setupResponse(client_fd, "500 Internal Server Error", chunked, event, error_pages_, 500) == -1)
+				close(client_fd);
+			return -1;
 		}
 	}
 	else
 	{
-		setupResponse(client_fd, "404 Not Found", chunked, event, error_pages, 404);
-		return;
+		if (setupResponse(client_fd, code_string, chunked, event, error_pages_, code) == -1)
+		{
+			if (setupResponse(client_fd, "500 Internal Server Error", chunked, event, error_pages_, 500) == -1)
+				close(client_fd);
+			return -1;
+		}
 	}
-	// if auto indexing is on and standard file doesn't exist it should show folder structure from that location
+	return 1;
 }
 
-void Server::setupResponse(int client_fd, std::string status, bool& chunked, epoll_event* event, std::map<uint, std::string>& error_pages, uint number, std::string location)
+/**
+ * @brief setups the response the client will recieve
+ * 
+ * @param client_fd file descriptor if the client
+ * @param status the code text needed in the header
+ * @param chunked if the response is chunked
+ * @param event the events of the client
+ * @param error_pages the erorror pages know by the server
+ * @param number what code is being send 
+ * @param location optinal location of the file being send
+ * @return 0 when done,
+ * @return -1 on send response error
+ */
+int Server::setupResponse(int client_fd, std::string status, bool& chunked, epoll_event* event, std::map<uint, std::string>& error_pages, uint number, std::string location)
 {
 	if (number == 200)
 	{
-		sendResponse(client_fd, status, location, chunked);
+		if (sendResponse(client_fd, status, location, chunked) == -1)
+			return -1;
 		doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
 		close(client_fd);
-		return;
 	}
 	else
 	{
@@ -640,19 +951,21 @@ void Server::setupResponse(int client_fd, std::string status, bool& chunked, epo
 			std::string fall_back = "example/errorPages/";
 			fall_back.append(std::to_string(number));
 			fall_back.append(".html");
-			sendResponse(client_fd, status, fall_back, chunked);
+			if (sendResponse(client_fd, status, fall_back, chunked) == -1)
+				return -1;
 			doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
 			close(client_fd);
 		}
 		else
 		{
 			location.insert(0UL, config_.getRoot());
-			sendResponse(client_fd, status, location + error_page->second, chunked);
+			if (sendResponse(client_fd, status, location + error_page->second, chunked) == -1)
+				return -1;
 			doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
 			close(client_fd);
-			return;
 		}
 	}
+	return 0;
 }
 
 /**
@@ -662,9 +975,11 @@ void Server::setupResponse(int client_fd, std::string status, bool& chunked, epo
  * @param status the status of the response
  * @param file_location the file location of the response
  * @param chunked if the response needs to be chunked
+ * @return 0 when response has been send,
+ * @return -1 on error
  */
 
-void Server::sendResponse(int client_fd, const std::string& status, const std::string& file_location, bool& chunked)
+int Server::sendResponse(int client_fd, const std::string& status, const std::string& file_location, bool& chunked)
 {
 	std::ostringstream response;
 	response << "HTTP/1.1 " << status << "\r\n";
@@ -674,7 +989,7 @@ void Server::sendResponse(int client_fd, const std::string& status, const std::s
 	if (!file_stream.is_open())
 	{
 		std::cerr << "files_stream open: " << file_location << std::endl;
-		return;
+		return -1;
 	}
 
 	response << "Content-Type: " << getContentType(file_location) << "\r\n";
@@ -682,8 +997,10 @@ void Server::sendResponse(int client_fd, const std::string& status, const std::s
 	if (chunked)
 	{
 		response << "Transfer-Encoding: chunked\r\n\r\n";
-		send(client_fd, response.str().c_str(), response.str().size(), 0);
-		sendChunkedResponse(client_fd, file_stream);
+		if (send(client_fd, response.str().c_str(), response.str().size(), 0) < 0)
+			return -1;
+		if (sendChunkedResponse(client_fd, file_stream) == -1)
+			return -1;
 		chunked = false;
 	}
 	else
@@ -692,9 +1009,12 @@ void Server::sendResponse(int client_fd, const std::string& status, const std::s
 		std::streamsize file_size = file_stream.tellg();
 		file_stream.seekg(0, std::ios::beg);
 		response << "Content-Length: " << file_size << "\r\n\r\n";
-		send(client_fd, response.str().c_str(), response.str().size(), 0);
-		sendFile(client_fd, file_stream);
+		if (send(client_fd, response.str().c_str(), response.str().size(), 0) < 0)
+			return -1;
+		if (sendFile(client_fd, file_stream) == -1)
+			return -1;
 	}
+	return 0;
 }
 
 /**
@@ -702,19 +1022,26 @@ void Server::sendResponse(int client_fd, const std::string& status, const std::s
  * 
  * @param client_Fd the file descriptor of the client
  * @param file_stream the file stream of the response needed to send
+ * @return 0 when all chunks have been send,
+ * @return -1 on send error
  */
-void Server::sendChunkedResponse(int client_Fd, std::ifstream& file_stream)
+int Server::sendChunkedResponse(int client_Fd, std::ifstream& file_stream)
 {
 	char buffer[BUFFER_SIZE];
 	while(file_stream.read(buffer, BUFFER_SIZE) || file_stream.gcount() > 0)
 	{
 		std::ostringstream chunk;
 		chunk << std::hex << file_stream.gcount() << "\r\n"; // chunk size in hex
-		send(client_Fd, chunk.str().c_str(), chunk.str().size(), 0);
-		send(client_Fd, buffer, file_stream.gcount(), 0);
-		send(client_Fd, "\r\n", 2, 0);
+		if(send(client_Fd, chunk.str().c_str(), chunk.str().size(), 0) < 0)
+			return -1;
+		if(send(client_Fd, buffer, file_stream.gcount(), 0) < 0)
+			return -1;
+		if (send(client_Fd, "\r\n", 2, 0) < 0)
+			return -1;
 	}
-	send(client_Fd, "0\r\n\r\n", 5, 0); // Last chunk (size 0) indicates end of transfer
+	if (send(client_Fd, "0\r\n\r\n", 5, 0) < 0) // Last chunk (size 0) indicates end of transfer
+		return -1;
+	return 0;
 }
 
 /**
@@ -722,14 +1049,20 @@ void Server::sendChunkedResponse(int client_Fd, std::ifstream& file_stream)
  * 
  * @param client_fd the file descriptor of the client
  * @param file_stream the file stream of the file being send 
+ * @return 0 when,
+ * @return -1 on send error
  */
-void Server::sendFile(int client_fd, std::ifstream& file_stream)
+int Server::sendFile(int client_fd, std::ifstream& file_stream)
 {
 	char buffer[BUFFER_SIZE];
+	if (file_stream.bad())
+		return -1;
 	while (file_stream.read(buffer, BUFFER_SIZE) || file_stream.gcount() > 0)
 	{
-		send(client_fd, buffer, file_stream.gcount(), 0);
+		if (send(client_fd, buffer, file_stream.gcount(), MSG_NOSIGNAL) < 0)
+			return -1;
 	}
+	return 0;
 }
 
 /**
