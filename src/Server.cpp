@@ -9,22 +9,22 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <filesystem>
 #include <sys/stat.h>
-
-void handlePostResponse(int clientSocket, std::map<e_RequestKeys, std::string> request_buffer);
+#include <dirent.h>
 
 Server::Server(Config& config) : config_(config)
 {
-	fillErrorMap();
-	std::string server_name = config_.getServerName();
-	if (server_name == "localhost")
-		server_name = "127.0.0.1";
-	main_index_ = config_.getIndex();
-	root_path_ = config_.getRoot();
-	locations_ = config.getLocations();
-	error_pages_ = config.getErrorPages();
-	if (createServerSocket(config.getListen(), server_name) != 0)
-		throw std::runtime_error("failed to setup server socket");
+    fillErrorMap();
+    std::string server_name = config_.getServerName();
+    if (server_name == "localhost")
+        server_name = "127.0.0.1";
+    main_index_ = config_.getIndex();
+    root_path_ = config_.getRoot();
+    locations_ = config.getLocations();
+    error_pages_ = config.getErrorPages();
+    if (createServerSocket(config.getListen(), server_name) != 0)
+        throw std::runtime_error("failed to setup server socket");
 }
 
 Server::~Server() {}
@@ -38,49 +38,49 @@ Server::~Server() {}
  */
 int Server::setupEpoll()
 {
-	epoll_fd_ = epoll_create(MAX_EVENTS);
-	if (epoll_fd_ == -1)
-	{
-		int nr = checkErrno(errno);
-		closeFd(server_fd_);
-		return nr;
-	}
+    epoll_fd_ = epoll_create(MAX_EVENTS);
+    if (epoll_fd_ == -1)
+    {
+        int nr = checkErrno(errno);
+        closeFd(server_fd_);
+        return nr;
+    }
 
-	epoll_event event{};
-	event.events = EPOLLIN;
-	event.data.fd = server_fd_;
-	
-	int nr = doEpollCtl(EPOLL_CTL_ADD, server_fd_, &event);
-	if (nr != 0)
-	{
-		closeFd(epoll_fd_, server_fd_);
-		return nr;
-	}
+    epoll_event event{};
+    event.events = EPOLLIN;
+    event.data.fd = server_fd_;
 
-	nr = setupPipe();
-	if (nr < 0)
-	{
-		closeFd(epoll_fd_, server_fd_);
-		return nr;
-	}
+    int nr = doEpollCtl(EPOLL_CTL_ADD, server_fd_, &event);
+    if (nr != 0)
+    {
+        closeFd(epoll_fd_, server_fd_);
+        return nr;
+    }
 
-	nr = putCoutCerrInEpoll();
-	if (nr < 0)
-	{
-		closeFd(epoll_fd_, server_fd_);
-		return nr;
-	}
+    nr = setupPipe();
+    if (nr < 0)
+    {
+        closeFd(epoll_fd_, server_fd_);
+        return nr;
+    }
 
-	nr = listenLoop();
-	if (nr < 0)
-	{
-		closeFd(stdout_pipe_[0], stderr_pipe_[0]);
-		closeFd(epoll_fd_, server_fd_);
-		return nr;
-	}
+    nr = putCoutCerrInEpoll();
+    if (nr < 0)
+    {
+        closeFd(epoll_fd_, server_fd_);
+        return nr;
+    }
 
-	closeFd(stdout_pipe_[0], stderr_pipe_[0]);
-	return 0;
+    nr = listenLoop();
+    if (nr < 0)
+    {
+        closeFd(stdout_pipe_[0], stderr_pipe_[0]);
+        closeFd(epoll_fd_, server_fd_);
+        return nr;
+    }
+
+    closeFd(stdout_pipe_[0], stderr_pipe_[0]);
+    return 0;
 }
 
 //private functions
@@ -94,18 +94,18 @@ int Server::setupEpoll()
  */
 int Server::putCoutCerrInEpoll()
 {
-	struct epoll_event std_event;
-	std_event.events = EPOLLIN;
-	std_event.data.fd = stdout_pipe_[0];
-	int nr = doEpollCtl(EPOLL_CTL_ADD, stdout_pipe_[0], &std_event);
-	if (nr < 0)
-		return nr;
+    struct epoll_event std_event;
+    std_event.events = EPOLLIN;
+    std_event.data.fd = stdout_pipe_[0];
+    int nr = doEpollCtl(EPOLL_CTL_ADD, stdout_pipe_[0], &std_event);
+    if (nr < 0)
+        return nr;
 
-	std_event.data.fd = stderr_pipe_[0];
-	nr = doEpollCtl(EPOLL_CTL_ADD, stderr_pipe_[0], &std_event);
-	if (nr < 0)
-		return nr;
-	return 0;
+    std_event.data.fd = stderr_pipe_[0];
+    nr = doEpollCtl(EPOLL_CTL_ADD, stderr_pipe_[0], &std_event);
+    if (nr < 0)
+        return nr;
+    return 0;
 }
 
 /**
@@ -116,21 +116,21 @@ int Server::putCoutCerrInEpoll()
  */
 int Server::setupPipe()
 {
-	if (pipe(stdout_pipe_) == -1 || pipe(stderr_pipe_) == -1)
-		return -1;
+    if (pipe(stdout_pipe_) == -1 || pipe(stderr_pipe_) == -1)
+        return -1;
 	
-	setNonBlocking(stdout_pipe_[0]);
-	setNonBlocking(stdout_pipe_[1]);
-	setNonBlocking(stderr_pipe_[0]);
-	setNonBlocking(stderr_pipe_[1]);
+    setNonBlocking(stdout_pipe_[0]);
+    setNonBlocking(stdout_pipe_[1]);
+    setNonBlocking(stderr_pipe_[0]);
+    setNonBlocking(stderr_pipe_[1]);
 
-	dup2(stdout_pipe_[1], STDOUT_FILENO);
-	dup2(stderr_pipe_[1], STDERR_FILENO);
+    dup2(stdout_pipe_[1], STDOUT_FILENO);
+    dup2(stderr_pipe_[1], STDERR_FILENO);
 
-	closeFd(stdout_pipe_[1], stderr_pipe_[1]);
+    closeFd(stdout_pipe_[1], stderr_pipe_[1]);
 
-	std::cout.setf(std::ios::unitbuf);
-	return 0;
+    std::cout.setf(std::ios::unitbuf);
+    return 0;
 }
 
 /**
@@ -144,20 +144,20 @@ int Server::setupPipe()
  */
 int Server::createServerSocket(uint port, const std::string& server_ip)
 {
-	server_fd_ = socket(AF_INET, SOCK_STREAM, 0);
-	if (server_fd_ == -1)
-		return 1;
-	int opt = 1;
-	setsockopt(server_fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-	sockaddr_in server_addr = setServerAddr(server_ip, port);
-	int nr = bindServerSocket(server_addr);
-	if (nr != 0)
-		return nr;
-	nr = listenServer();
-	if (nr != 0)
-		return nr;
-	setNonBlocking(server_fd_);
-	return 0;
+    server_fd_ = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd_ == -1)
+        return 1;
+    int opt = 1;
+    setsockopt(server_fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    sockaddr_in server_addr = setServerAddr(server_ip, port);
+    int nr = bindServerSocket(server_addr);
+    if (nr != 0)
+        return nr;
+    nr = listenServer();
+    if (nr != 0)
+        return nr;
+    setNonBlocking(server_fd_);
+    return 0;
 }
 
 /**
@@ -169,11 +169,11 @@ int Server::createServerSocket(uint port, const std::string& server_ip)
  */
 sockaddr_in Server::setServerAddr(const std::string& server_ip, uint port)
 {
-	sockaddr_in server_addr{};
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_addr.s_addr = inet_addr(server_ip.c_str());
-	server_addr.sin_port = htons(port);
-	return server_addr;
+    sockaddr_in server_addr{};
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr(server_ip.c_str());
+    server_addr.sin_port = htons(port);
+    return server_addr;
 }
 
 /**
@@ -186,13 +186,13 @@ sockaddr_in Server::setServerAddr(const std::string& server_ip, uint port)
  */
 int Server::bindServerSocket(sockaddr_in& server_addr)
 {
-	if (bind(server_fd_, (sockaddr*)&server_addr, sizeof(server_addr)) < 0)
-	{
-		int nr = checkErrno(errno);
-		closeFd(server_fd_);
-		return nr;
-	}
-	return 0;
+    if (bind(server_fd_, (sockaddr*)&server_addr, sizeof(server_addr)) < 0)
+    {
+        int nr = checkErrno(errno);
+        closeFd(server_fd_);
+        return nr;
+    }
+    return 0;
 }
 
 /**
@@ -204,13 +204,13 @@ int Server::bindServerSocket(sockaddr_in& server_addr)
  */
 int Server::listenServer()
 {
-	if(listen(server_fd_, SOMAXCONN) < 0)
-	{
-		int nr = checkErrno(errno);
-		closeFd(server_fd_);
-		return nr;
-	}
-	return 0;
+    if(listen(server_fd_, SOMAXCONN) < 0)
+    {
+        int nr = checkErrno(errno);
+        closeFd(server_fd_);
+        return nr;
+    }
+    return 0;
 }
 
 /**
@@ -220,8 +220,8 @@ int Server::listenServer()
  */
 void Server::setNonBlocking(int fd)
 {
-	int flags = fcntl(fd, F_GETFL, 0);
-	fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    int flags = fcntl(fd, F_GETFL, 0);
+    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
 /**
@@ -233,12 +233,12 @@ void Server::setNonBlocking(int fd)
  */
 void Server::closeFd(int fd_a, int fd_b, int fd_c)
 {
-	if (fd_a != -1)
-		close(fd_a);
-	if (fd_b != -1)
-		close(fd_b);
-	if (fd_c != -1)
-		close(fd_c);
+    if (fd_a != -1)
+        close(fd_a);
+    if (fd_b != -1)
+        close(fd_b);
+    if (fd_c != -1)
+        close(fd_c);
 }
 
 /**
@@ -248,22 +248,22 @@ void Server::closeFd(int fd_a, int fd_b, int fd_c)
  */
 int Server::listenLoop()
 {
-	epoll_event events[MAX_EVENTS];
-	std::string method, source, http_version = "";
-	bool chunked = false;
-	while (true)
-	{
-		int event_count = epoll_wait(epoll_fd_, events, MAX_EVENTS, TIMEOUT_MS);
-		std::string request;
-		for (int i = 0; i < event_count; ++i)
-		{
-			int nr = checkEvent(events[i], method, source, http_version, chunked);
-			if (nr != 0)
-				return nr;
-		}
-	}
-	closeFd(epoll_fd_, server_fd_);
-	return 0;
+    epoll_event events[MAX_EVENTS];
+    std::string method, source, http_version = "";
+    bool chunked = false;
+    while (true)
+    {
+        int event_count = epoll_wait(epoll_fd_, events, MAX_EVENTS, TIMEOUT_MS);
+        std::string request;
+        for (int i = 0; i < event_count; ++i)
+        {
+            int nr = checkEvent(events[i], method, source, http_version, chunked);
+            if (nr != 0)
+                return nr;
+        }
+    }
+    closeFd(epoll_fd_, server_fd_);
+    return 0;
 }
 
 /**
@@ -280,27 +280,30 @@ int Server::listenLoop()
  */
 int Server::checkEvent(epoll_event events, std::string& method, std::string& source, std::string& http_version, bool& chunked)
 {
-	int fd = events.data.fd;
-	if (fd == server_fd_) // new connection
-	{
-		if (setupConnection() == -2)
-		{
-			closeFd(epoll_fd_, server_fd_);
-			return -2;
-		}
-	}
-	else if (events.events & EPOLLIN) // read event
-	{
-		request_buffer_ = readRequest(fd, method, source, http_version, chunked);
-		if (handleClient(fd, chunked) == -2)
-		{
-			closeFd(epoll_fd_, server_fd_);
-			return -2;
-		}
-	}
-	else if (events.events & EPOLLOUT) // write event
-		handleResponse(fd, &events, method, source, http_version, chunked);
-	return 0;
+    int fd = events.data.fd;
+    if (fd == server_fd_) // new connection
+    {
+        if (setupConnection() == -2)
+        {
+            closeFd(epoll_fd_, server_fd_);
+            return -2;
+        }
+    }
+    else if (events.events & EPOLLIN) // read event
+    {
+        bool max_size = false;
+        request_buffer_ = readRequest(fd, method, source, http_version, chunked, max_size);
+        if (max_size)
+            return setupResponse(fd, "413 Length Too Large", chunked, &events, error_pages_, 413);
+        if (handleClient(fd, chunked) == -2)
+        {
+            closeFd(epoll_fd_, server_fd_);
+            return -2;
+        }
+    }
+    else if (events.events & EPOLLOUT) // write event
+        handleResponse(fd, &events, method, source, http_version, chunked);
+    return 0;
 }
 
 /**
@@ -312,22 +315,22 @@ int Server::checkEvent(epoll_event events, std::string& method, std::string& sou
  */
 int Server::setupConnection()
 {
-	sockaddr_in clientAddr{};
-	socklen_t clientLen = sizeof(clientAddr);
-	int clientFd = accept(server_fd_, (sockaddr*)&clientAddr, &clientLen);
-	if (clientFd != -1)
-	{
-		setNonBlocking(clientFd);
-		epoll_event client_event{};
-		client_event.events = EPOLLIN;
-		client_event.data.fd = clientFd;
-		int nr = doEpollCtl(EPOLL_CTL_ADD, clientFd, &client_event);
-		if (nr != 0)
-				return nr;
-		return 0;
-	}
-	else
-		return checkErrno(errno);
+    sockaddr_in clientAddr{};
+    socklen_t clientLen = sizeof(clientAddr);
+    int clientFd = accept(server_fd_, (sockaddr*)&clientAddr, &clientLen);
+    if (clientFd != -1)
+    {
+        setNonBlocking(clientFd);
+        epoll_event client_event{};
+        client_event.events = EPOLLIN;
+        client_event.data.fd = clientFd;
+        int nr = doEpollCtl(EPOLL_CTL_ADD, clientFd, &client_event);
+        if (nr != 0)
+            return nr;
+        return 0;
+    }
+    else
+        return checkErrno(errno);
 }
 
 /**
@@ -343,27 +346,27 @@ int Server::setupConnection()
  */
 int Server::checkErrno(int err, int fd, epoll_event events)
 {
-	std::unordered_map<int, e_ErrorInfo>::iterator it = error_map_.find(err);
-	if (it != error_map_.end())
-	{
-		std::cerr << it->second.message << std::endl;
-		if (err == EEXIST)
-		{
-			if (doEpollCtl(EPOLL_CTL_MOD, fd, &events) != 0)
-				return it->second.return_value;
-			return 0;
-		}
-		else if (err == ENOENT)
-		{
-			if (doEpollCtl(EPOLL_CTL_ADD, fd, &events) != 0)
-				return it->second.return_value;
-			return 0;
-		}
-		else if (err == 0) {}
-		return it->second.return_value;
-	}
-	std::cerr << "Unknown error: " << strerror(err) << std::endl;
-	return -1;
+    std::unordered_map<int, e_ErrorInfo>::iterator it = error_map_.find(err);
+    if (it != error_map_.end())
+    {
+        std::cerr << it->second.message << std::endl;
+        if (err == EEXIST)
+        {
+            if (doEpollCtl(EPOLL_CTL_MOD, fd, &events) != 0)
+                return it->second.return_value;
+            return 0;
+        }
+        else if (err == ENOENT)
+        {
+            if (doEpollCtl(EPOLL_CTL_ADD, fd, &events) != 0)
+                return it->second.return_value;
+            return 0;
+        }
+        else if (err == 0) {}
+        return it->second.return_value;
+    }
+    std::cerr << "Unknown error: " << strerror(err) << std::endl;
+    return -1;
 }
 
 /**
@@ -372,32 +375,32 @@ int Server::checkErrno(int err, int fd, epoll_event events)
  */
 void Server::fillErrorMap()
 {
-	error_map_ = {
-		{EAGAIN, 		{"No pending connection, just return.", -1}},
-		{ECONNABORTED,	{"Connection aborted before accept(), Ignoring", -1}},
-		{EMFILE,		{"Too many open files. Consider increasing file descriptor limits.", -1}},
-		{ENFILE,		{"Too many open files. Consider increasing file descriptor limits.", -1}},
-		{ENOMEM,		{"System out of memory. Cannot accept new connections.", -2}},
-		{EBADF,			{"Critical error: Invalid socket or file descpritor. Restarting server may be required.", -2}},
-		{EINVAL,		{"Critical error: Invalid socket or arguments. Restarting server may be required.", -2}},
-		{ENOSPC,		{"Reached system limit for epoll FDs. Consider increasing limit.", -2}},
-		{EEXIST,		{"FD already in epoll. Modifying instead.", -1}},
-		{ENOENT,		{"FD does not exist. Retrying with EPOLL_CTL_ADD", -1}},
-		{EADDRINUSE, 	{"Port is already in use. Try another port or wait.", -1}},
-		{EADDRNOTAVAIL,	{"The requested address is not available on this machine.", -2}},
-		{EAFNOSUPPORT,	{"Address family not supported.", -2}},
-		{ENOTSOCK, 		{"The file descriptor is not a socket.", -2}},
-		{EACCES,		{"Permission denied. Try using a different port or running as root.", -2}},
-		{EPERM,			{"Operation not permitted on socket or FD.", -2}},
-		{ENOBUFS,		{"Insufficient resources to complete the operation.", -2}},
-		{EFAULT,		{"Invalid memory address provided for sockaddr or read.", -2}},
-		{EOPNOTSUPP,	{"Operation not supported on this socket type. Check socket configuration.", -2}},
-		{EWOULDBLOCK,	{"Resource temporarily unavailable (try again).", -1}},
-		{ECONNRESET,	{"Connection reset by peer. The connection was forcibly closed.", -1}},
-		{EINTR,			{"Operation interrupted by signal, try again.", -1}},
-		{EIO,			{"I/O error occurred during read operation.", -2}},
-		{ESHUTDOWN,		{"Socket has been shut down; no further reading possible.", -1}}
-	};
+    error_map_ = {
+        {EAGAIN, 		{"No pending connection, just return.", -1}},
+        {ECONNABORTED,	{"Connection aborted before accept(), Ignoring", -1}},
+        {EMFILE,		{"Too many open files. Consider increasing file descriptor limits.", -1}},
+        {ENFILE,		{"Too many open files. Consider increasing file descriptor limits.", -1}},
+        {ENOMEM,		{"System out of memory. Cannot accept new connections.", -2}},
+        {EBADF,			{"Critical error: Invalid socket or file descpritor. Restarting server may be required.", -2}},
+        {EINVAL,		{"Critical error: Invalid socket or arguments. Restarting server may be required.", -2}},
+        {ENOSPC,		{"Reached system limit for epoll FDs. Consider increasing limit.", -2}},
+        {EEXIST,		{"FD already in epoll. Modifying instead.", -1}},
+        {ENOENT,		{"FD does not exist. Retrying with EPOLL_CTL_ADD", -1}},
+        {EADDRINUSE, 	{"Port is already in use. Try another port or wait.", -1}},
+        {EADDRNOTAVAIL,	{"The requested address is not available on this machine.", -2}},
+        {EAFNOSUPPORT,	{"Address family not supported.", -2}},
+        {ENOTSOCK, 		{"The file descriptor is not a socket.", -2}},
+        {EACCES,		{"Permission denied. Try using a different port or running as root.", -2}},
+        {EPERM,			{"Operation not permitted on socket or FD.", -2}},
+        {ENOBUFS,		{"Insufficient resources to complete the operation.", -2}},
+        {EFAULT,		{"Invalid memory address provided for sockaddr or read.", -2}},
+        {EOPNOTSUPP,	{"Operation not supported on this socket type. Check socket configuration.", -2}},
+        {EWOULDBLOCK,	{"Resource temporarily unavailable (try again).", -1}},
+        {ECONNRESET,	{"Connection reset by peer. The connection was forcibly closed.", -1}},
+        {EINTR,			{"Operation interrupted by signal, try again.", -1}},
+        {EIO,			{"I/O error occurred during read operation.", -2}},
+        {ESHUTDOWN,		{"Socket has been shut down; no further reading possible.", -1}}
+    };
 }
 
 /**
@@ -411,21 +414,21 @@ void Server::fillErrorMap()
  */
 int Server::handleClient(int client_fd, bool& chunked)
 {
-	if (client_fd == stdout_pipe_[0] || client_fd == stderr_pipe_[0])
-		return 0;
-	epoll_event event{};
-	event.events = EPOLLOUT;
-	event.data.fd = client_fd;
-	if (!request_buffer_.empty())
-	{
-		// std::cout << "handle client request buffer not empty" << std::endl;
-		return doClientModification(client_fd, &event, "500 Internal Server Error", "./example/errorPages/500.html", chunked);
-	}
-	else
-	{
-		std::cerr << "handle client request buffer empty\n";
-		return doClientDelete(client_fd, "500 Internal Server Error", "./example/errorPages/500.html", &event, chunked);
-	}
+    if (client_fd == stdout_pipe_[0] || client_fd == stderr_pipe_[0])
+        return 0;
+    epoll_event event{};
+    event.events = EPOLLOUT;
+    event.data.fd = client_fd;
+    if (!request_buffer_.empty())
+    {
+        // std::cout << "handle client request buffer not empty" << std::endl;
+        return doClientModification(client_fd, &event, "500 Internal Server Error", "./example/errorPages/500.html", chunked);
+    }
+    else
+    {
+        std::cerr << "handle client request buffer empty\n";
+        return doClientDelete(client_fd, "500 Internal Server Error", "./example/errorPages/500.html", &event, chunked);
+    }
 }
 
 /**
@@ -442,13 +445,13 @@ int Server::handleClient(int client_fd, bool& chunked)
  */
 int Server::doClientModification(int client_fd, epoll_event* event, const std::string& status, const std::string& location, bool& chunked)
 {
-	int nr = doEpollCtl(EPOLL_CTL_MOD, client_fd, event);
-	if (nr != 0)
-	{
-		doClientDelete(client_fd, status, location, event, chunked);
-		return nr;
-	}
-	return 0;
+    int nr = doEpollCtl(EPOLL_CTL_MOD, client_fd, event);
+    if (nr != 0)
+    {
+        doClientDelete(client_fd, status, location, event, chunked);
+        return nr;
+    }
+    return 0;
 }
 
 /**
@@ -463,9 +466,9 @@ int Server::doClientModification(int client_fd, epoll_event* event, const std::s
  */
 int Server::doClientDelete(int client_fd, const std::string& status, const std::string location, epoll_event* event, bool& chunked)
 {
-	sendResponse(client_fd, status, location, chunked);
-	doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
-	return -2;
+    sendResponse(client_fd, status, location, chunked);
+    doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
+    return -2;
 }
 
 /**
@@ -476,20 +479,20 @@ int Server::doClientDelete(int client_fd, const std::string& status, const std::
  */
 void Server::logMsg(const char *msg, int fd)
 {
-	std::string file;
-	if (fd == stdout_pipe_[0])
-		file = STANDARD_LOG_FILE;
-	else
-		file = STANDARD_ERROR_LOG_FILE;
-	if (mkdir("logs", 0777) < 0 && errno != EEXIST)
-	{
-		std::cerr << "mkdir() error: " << strerror(errno) << std::endl;
-		return;
-	}
-	file.insert(0, "logs/");
-	int file_fd = open(file.c_str(), O_CREAT | O_APPEND | O_WRONLY, S_IRUSR | S_IWUSR);
-	write(file_fd, msg, strlen(msg));
-	close(file_fd);
+    std::string file;
+    if (fd == stdout_pipe_[0])
+        file = STANDARD_LOG_FILE;
+    else
+        file = STANDARD_ERROR_LOG_FILE;
+    if (mkdir("logs", 0777) < 0 && errno != EEXIST)
+    {
+        std::cerr << "mkdir() error: " << strerror(errno) << std::endl;
+        return;
+    }
+    file.insert(0, "logs/");
+    int file_fd = open(file.c_str(), O_CREAT | O_APPEND | O_WRONLY, S_IRUSR | S_IWUSR);
+    write(file_fd, msg, strlen(msg));
+    close(file_fd);
 }
 
 /**
@@ -502,47 +505,56 @@ void Server::logMsg(const char *msg, int fd)
  * @param chunked will be true if the response needs to be chunked
  * @return the parsed body 
  */
-std::string Server::readRequest(int client_fd, std::string& method, std::string& source, std::string& http_version, bool& chunked)
+std::string Server::readRequest(int client_fd, std::string& method, std::string& source, std::string& http_version, bool& chunked, bool& max_size)
 {
-	char buffer[BUFFER_SIZE];
-	std::string request_buffer;
-	ssize_t bytes_received = 0;
+    char buffer[BUFFER_SIZE];
+    std::string request_buffer;
+    ssize_t bytes_received = 0;
 
-	if (client_fd == stdout_pipe_[0] || client_fd == stderr_pipe_[0])
-		return handleCoutErrOutput(client_fd);
+    if (client_fd == stdout_pipe_[0] || client_fd == stderr_pipe_[0])
+        return handleCoutErrOutput(client_fd);
 
-	while((bytes_received = recv(client_fd, buffer, BUFFER_SIZE, 0)) > 0)
-	{
-		request_buffer.append(buffer, bytes_received);
-		// check if headers are fully received
-		size_t header_end = request_buffer.find("\r\n\r\n");
-		if (header_end != std::string::npos)
-		{
-			std::cout << request_buffer << std::endl;
-			setContentTypeRequest(request_buffer, header_end);
-
-			setMethodSourceHttpVerion(method, source, http_version, request_buffer);
-
-			std::string headers = request_buffer.substr(0, header_end);
-			request_[REQUEST_HEADER] = headers;
-
-			size_t body_start = header_end + 4; // Skip \r\n\r\n
-
-			// check if it's chunked transfer encoding
-			if (headers.find("Transfer-Encoding: chunked") != std::string::npos || headers.find("TE: chunked") != std::string::npos)
-			{
-				chunked = true;
-				return handleChunkedRequest(body_start, request_buffer, client_fd, buffer);
-			}
-			// Handle Content-Length
-			size_t content_length_pos = headers.find("Content-Length: ");
-			if (content_length_pos != std::string::npos)
-				return handleContentLength(content_length_pos, headers, request_buffer, body_start, client_fd, buffer);
-			return request_buffer;
-		}
+    while((bytes_received = recv(client_fd, buffer, BUFFER_SIZE, 0)) > 0)
+    {
+        request_buffer.append(buffer, bytes_received);
+        // check if headers are fully received
+        size_t header_end = request_buffer.find("\r\n\r\n");
+        if (header_end != std::string::npos)
+            return readHeader(request_buffer, header_end, method, source, http_version, chunked, client_fd, buffer, max_size);
 	}
 	std::cerr << "read request empty at end\n";
 	return "";
+}
+
+std::string Server::readHeader(std::string request_buffer, size_t header_end, std::string& method, std::string& source, std::string http_version, bool& chunked, int client_fd, char buffer[], bool& max_size)
+{
+     std::cout << request_buffer << std::endl;
+    setContentTypeRequest(request_buffer, header_end);
+
+    setMethodSourceHttpVerion(method, source, http_version, request_buffer);
+
+    std::string headers = request_buffer.substr(0, header_end);
+    request_[REQUEST_HEADER] = headers;
+
+    size_t body_start = header_end + 4; // Skip \r\n\r\n
+
+    // check if it's chunked transfer encoding
+    if (headers.find("Transfer-Encoding: chunked") != std::string::npos || headers.find("TE: chunked") != std::string::npos)
+    {
+        chunked = true;
+        return handleChunkedRequest(body_start, request_buffer, client_fd, buffer);
+    }
+    // Handle Content-Length
+    size_t content_length_pos = headers.find("Content-Length: ");
+    if (content_length_pos != std::string::npos)
+    {
+        std:: string content_body = handleContentLength(content_length_pos, headers, request_buffer, body_start, client_fd, buffer, max_size);
+        if (max_size)
+            return "";
+        else
+            return content_body;
+    }
+    return request_buffer;
 }
 
 /**
@@ -555,15 +567,15 @@ std::string Server::readRequest(int client_fd, std::string& method, std::string&
  */
 int Server::setContentTypeRequest(std::string request_buffer, size_t header_end)
 {
-	size_t request_type_pos= request_buffer.find("Content-Type: ");
-	if (request_type_pos != std::string::npos)
-	{
-		request_type_pos += 14; // skip past "Content-type: "
-		size_t end = request_buffer.substr(request_type_pos, header_end - request_type_pos).length();
-		request_[REQUEST_TYPE] = request_buffer.substr(request_type_pos, end);
-		return 0;
-	}
-	return -1;
+    size_t request_type_pos= request_buffer.find("Content-Type: ");
+    if (request_type_pos != std::string::npos)
+    {
+        request_type_pos += 14; // skip past "Content-type: "
+        size_t end = request_buffer.substr(request_type_pos, header_end - request_type_pos).length();
+        request_[REQUEST_TYPE] = request_buffer.substr(request_type_pos, end);
+        return 0;
+    }
+    return -1;
 }
 
 /**
@@ -573,32 +585,32 @@ int Server::setContentTypeRequest(std::string request_buffer, size_t header_end)
  * @return empty string when done
  */
 std::string Server::handleCoutErrOutput(int client_fd)
-{
-	ssize_t bytes_received = 0;
-	std::string request_buffer;
-	char buffer[BUFFER_SIZE];
-	if (client_fd == stdout_pipe_[0])
-	{
-		while ((bytes_received = read(client_fd, buffer, BUFFER_SIZE -1)) > 0)
-		{
-			buffer[bytes_received] = '\0';
-			request_buffer.append(buffer, bytes_received);
-		}
-		request_buffer.insert(0, "[Captured stdcout: ]");
-		logMsg(request_buffer.c_str(), client_fd);
-		return "";
-	}
-	else
-	{
-		while ((bytes_received = read(client_fd, buffer, BUFFER_SIZE -1)) > 0)
-		{
-			buffer[bytes_received] = '\0';
-			request_buffer.append(buffer, bytes_received);
-		}
-		request_buffer.insert(0, "[Captured stdcerr]: ");
-		logMsg(request_buffer.c_str(), client_fd);
-		return "";
-	}
+{  
+    ssize_t bytes_received = 0;
+    std::string request_buffer;
+    char buffer[BUFFER_SIZE];
+    if (client_fd == stdout_pipe_[0])
+    {
+        while ((bytes_received = read(client_fd, buffer, BUFFER_SIZE -1)) > 0)
+        {
+            buffer[bytes_received] = '\0';
+            request_buffer.append(buffer, bytes_received);
+        }
+        request_buffer.insert(0, "[Captured stdcout: ]");
+        logMsg(request_buffer.c_str(), client_fd);
+        return "";
+    }
+    else
+    {
+        while ((bytes_received = read(client_fd, buffer, BUFFER_SIZE -1)) > 0)
+        {
+            buffer[bytes_received] = '\0';
+            request_buffer.append(buffer, bytes_received);
+        }
+        request_buffer.insert(0, "[Captured stdcerr]: ");
+        logMsg(request_buffer.c_str(), client_fd);
+        return "";
+    }
 }
 
 /**
@@ -611,8 +623,8 @@ std::string Server::handleCoutErrOutput(int client_fd)
  */
 void Server::setMethodSourceHttpVerion(std::string& method, std::string& source, std::string& http_version, std::string& request_buffer)
 {
-	std::istringstream stream(request_buffer);
-	stream >> method >> source >> http_version;
+    std::istringstream stream(request_buffer);
+    stream >> method >> source >> http_version;
 }
 
 /**
@@ -625,20 +637,20 @@ void Server::setMethodSourceHttpVerion(std::string& method, std::string& source,
  * @return -1 on error
  */
 int Server::useRevc(int client_fd, char buffer[], std::string& request_buffer)
-{
-	size_t bytes_recieved = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
-	if (bytes_recieved <= 0)
-		return -1;
-	try
-	{
-		request_buffer.append(buffer, bytes_recieved);
-	}
-	catch (std::length_error& e)
-	{
-		(void)e;
-		return -1;
-	}
-	return 0;
+{  
+    size_t bytes_recieved = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
+    if (bytes_recieved <= 0)
+        return -1;
+    try
+    {
+        request_buffer.append(buffer, bytes_recieved);
+    }
+    catch (std::length_error& e)
+    {
+        (void)e;
+        return -1;
+    }
+    return 0;
 }
 
 /**
@@ -652,30 +664,30 @@ int Server::useRevc(int client_fd, char buffer[], std::string& request_buffer)
  */
 std::string Server::handleChunkedRequest(size_t body_start, std::string& request_buffer, int client_fd, char buffer[])
 {
-	std::string decoded_body;
-	size_t pos = body_start;
-	while (true)
-	{
-		// read chunk size
-		size_t chunk_size_end = request_buffer.find("\r\n", pos);
-		if (chunk_size_end == std::string::npos)
-		{
-			if (useRevc(client_fd, buffer, request_buffer) == -1) break;
-			continue;
-		}
-		std::string chunkSizeHex = request_buffer.substr(pos, chunk_size_end - pos);
-		int chunk_size = std::stoi(chunkSizeHex, nullptr, 16);
-		pos = chunk_size_end + 2; // move past \r\n
-		if (chunk_size == 0) break; // end of chunks
-		// Ensure full chunk is recieved
-		while (request_buffer.size() < pos + chunk_size + 2)
-			if (useRevc(client_fd, buffer, request_buffer) == -1) return "";
-		// Extract chunk data
-		std::string chunk_data = request_buffer.substr(pos, chunk_size);
-		decoded_body.append(chunk_data);
-		pos += chunk_size + 2; // Move past \r\n
-	}
-	return decoded_body;
+    std::string decoded_body;
+    size_t pos = body_start;
+    while (true)
+    {
+        // read chunk size
+        size_t chunk_size_end = request_buffer.find("\r\n", pos);
+        if (chunk_size_end == std::string::npos)
+        {
+            if (useRevc(client_fd, buffer, request_buffer) == -1) break;
+            continue;
+        }
+        std::string chunkSizeHex = request_buffer.substr(pos, chunk_size_end - pos);
+        int chunk_size = std::stoi(chunkSizeHex, nullptr, 16);
+        pos = chunk_size_end + 2; // move past \r\n
+        if (chunk_size == 0) break; // end of chunks
+        // Ensure full chunk is recieved
+        while (request_buffer.size() < pos + chunk_size + 2)
+            if (useRevc(client_fd, buffer, request_buffer) == -1) return "";
+        // Extract chunk data
+        std::string chunk_data = request_buffer.substr(pos, chunk_size);
+        decoded_body.append(chunk_data);
+        pos += chunk_size + 2; // Move past \r\n
+    }
+    return decoded_body;
 }
 
 /**
@@ -689,15 +701,23 @@ std::string Server::handleChunkedRequest(size_t body_start, std::string& request
  * @param buffer the buffer used for reading
  * @return returns the body base on the length given in contentLength
  */
-std::string Server::handleContentLength(size_t content_length_pos, std::string& headers, std::string& request_buffer, size_t body_start, int client_fd, char buffer[])
+std::string Server::handleContentLength(size_t content_length_pos, std::string& headers, std::string& request_buffer, size_t body_start, int client_fd, char buffer[], bool& max_size)
 {
-	size_t start = content_length_pos + 16; // skipping "Content-Length: "
-	size_t end = headers.find("\r\n", start);
-	int contentLength = std::stoi(headers.substr(start, end - start));
-	while (request_buffer.size() < body_start + contentLength)
-		if(useRevc(client_fd, buffer, request_buffer) == -1) break;
-	request_[REQUEST_BODY].append(request_buffer.substr(body_start, contentLength));
-	return request_buffer.substr(body_start, contentLength);
+    size_t start = content_length_pos + 16; // skipping "Content-Length: "
+    size_t end = headers.find("\r\n", start);
+	unsigned long contentLength = std::stoul(headers.substr(start, end - start));
+    if (config_.getClientMaxBodySize() > 0)
+    {
+        if (contentLength > static_cast<unsigned long>(config_.getClientMaxBodySize()))
+        {
+            max_size = true;
+            return "";
+        }
+    }
+    while (request_buffer.size() < body_start + contentLength)
+        if(useRevc(client_fd, buffer, request_buffer) == -1) break;
+    request_[REQUEST_BODY].append(request_buffer.substr(body_start, contentLength));
+    return request_buffer.substr(body_start, contentLength);
 }
 
 /**
@@ -714,29 +734,80 @@ std::string Server::handleContentLength(size_t content_length_pos, std::string& 
  */
 int Server::handleResponse(int client_fd, epoll_event* event, std::string& method, std::string& source, std::string& http_version, bool& chunked)
 {
-	std::string file_path;
-	std::vector<Location>::iterator location_it = locations_.begin();
-	std::vector<Location>::iterator location_ite = locations_.end();
+    std::string file_path;
+    std::vector<Location>::iterator location_it = locations_.begin();
 
-	int nr = checkHTTPVersion(http_version, client_fd, chunked, event);
-	if (nr != 1)
-		return nr;
+    int nr = checkHTTPVersion(http_version, client_fd, chunked, event);
+    if (nr != 1)
+        return nr;
 	
-	nr = checkLocations(location_it, location_ite, file_path, source, client_fd, chunked, event);
-	if (nr != 1)
-		return nr;
+    std::vector<std::string> token_location = sourceChunker(source);
+    nr = checkLocations(token_location, file_path, client_fd, chunked, event, location_it);
+    if (nr != 1)
+        return nr;
 
+    nr = checkAllowedMethods(location_it, client_fd, chunked, event, method);
+    if (nr != 1)
+        return nr;
 
-	nr = checkAllowedMethods(location_it, client_fd, chunked, event, method);
-	if (nr != 1)
-		return nr;
+    nr = checkFile(file_path, client_fd, chunked, event, location_it);
+    if (nr < 0)
+        return nr;
+    else if (nr == 0)
+    {
+       nr = checkAutoIndexing(location_it, client_fd, chunked, event);
+       if (nr != 1)
+        return nr;
+    }
+    return 0;
+}
 
+int Server::checkAutoIndexing(std::vector<Location>::iterator location_it, int client_fd, bool& chunked, epoll_event* event)
+{
+    std::string path = config_.getRoot() + location_it->getPath();
+    if (!isDirectory(path))
+        return fileResponseSetup(client_fd, "404 Not Found", chunked, event, 404);
+    if (!filePermission(path))
+        return fileResponseSetup(client_fd, "404 Not Found", chunked, event, 404);
 
-	nr = checkFile(file_path, client_fd, chunked, event, location_it);
-	if (nr != 1)
-		return nr;
-	return 0;
-	// if auto indexing is on and standard file doesn't exist it should show folder structure from that location
+    std::string body;
+    if (buildDirectoryResponse(path, body) == -1)
+        return -1;
+    
+    if (sendResponse(client_fd, "200 OK", body, chunked, true) == -1)
+        return -1;
+    doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
+    close(client_fd);
+    return 1;
+}
+
+bool Server::isDirectory(std::string& path)
+{
+    return std::filesystem::is_directory(path);
+}
+
+int Server::buildDirectoryResponse(const std::string& path, std::string& body)
+{
+    DIR* dir = opendir(path.c_str());
+    if (dir == nullptr)
+    { 
+        std::cerr << "failed to open directory!\n";
+        return -1;
+    }
+    body.append("<!DOCTYPE html><html><body><h1>Direcotry Listing for ");
+    body.append(path);
+    body.append("</h1><ul>");
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr)
+    {
+        body.append("<li>");
+        body.append(entry->d_name);
+        body.append("</li>");
+    }
+
+    body.append("</ul></body></html>");
+    closedir(dir);
+    return 0;
 }
 
 /**
@@ -752,13 +823,39 @@ int Server::handleResponse(int client_fd, epoll_event* event, std::string& metho
  */
 int Server::checkHTTPVersion(std::string& http_version, int client_fd, bool& chunked, epoll_event* event)
 {
-	if (http_version != "HTTP/1.1")
-	{
-		if (setupResponse(client_fd, "505 HTTP Version Not Supported", chunked, event, error_pages_, 505) == -1)
-			return -1;
-		return 0;
-	}
+    if (http_version != "HTTP/1.1")
+    {
+        return setupResponse(client_fd, "505 HTTP ersion Not Supported", chunked, event, error_pages_, 505);
+    }
 	return 1;
+}
+
+std::vector<std::string> Server::sourceChunker(std::string source)
+{
+    char delimiter = '/';
+    std::vector<std::string> result;
+    std::string token;
+    if (source == "/")
+    {
+        result.push_back("/");
+        return result;
+    }
+    for (char ch : source) 
+    {
+        if (ch == delimiter) 
+        {
+            if (!token.empty()) 
+            {
+                result.push_back(token);
+                token.clear();
+            }
+        } 
+        else
+            token += ch;
+    }
+    if (!token.empty())
+        result.push_back(token);
+    return result;
 }
 
 /**
@@ -775,36 +872,86 @@ int Server::checkHTTPVersion(std::string& http_version, int client_fd, bool& chu
  * @return 0, if location was not found, but response was send to client
  * @return -1 if location was not found, and response to the client failed
  */
-int Server::checkLocations(std::vector<Location>::iterator& location_it, std::vector<Location>::iterator& location_ite, std::string& file_path, std::string source, int client_fd, bool& chunked, epoll_event* event)
+int Server::checkLocations(std::vector<std::string>& token_location, std::string& file_path, int client_fd, bool& chunked, epoll_event* event, std::vector<Location>::iterator& location_it)
 {
-	while (location_it != location_ite)
-	{
-		std::string location = location_it->getPath();
-		if (location == source)
-		{
-			if (location == "/")
-				file_path = root_path_ + main_index_;
-			else
-			{
-				if (location[0] == '/' && location.find(".") == std::string::npos)
-				{
-					location = location.substr(1, location.size() - 1);
-					file_path = root_path_ + location + '/' + location_it->getIndex();
-				}
-				else
-					file_path = root_path_ + location_it->getIndex();
-			}
-			break;
-		}
-		++location_it;
-	}
-	if (file_path.empty())
-	{
-		if (setupResponse(client_fd, "404 Not Found", chunked, event, error_pages_, 404) == -1)
-			return -1;
-		return 0;
-	}
-	return 1;
+    std::map<size_t, std::string> found_location;
+
+    size_t token_size = token_location.size();
+    setPosibleLocations(token_size, token_location, found_location);
+
+    if (!found_location.empty())
+    {
+        size_t most_precise = 0;
+        std::map<size_t, std::string>::iterator fl_it = found_location.begin();
+        std::map<size_t, std::string>::iterator fl_ite = found_location.end();
+        while (fl_it != fl_ite)
+        {
+            if (fl_it->first > most_precise)
+                most_precise = fl_it->first;
+            ++fl_it;
+        }
+
+        for (size_t i = 0; i < most_precise; ++i)
+        {
+            try 
+            {
+                if (found_location.at(i).compare("return"))
+                    return setupResponse(client_fd, "301 Moved Permanently", chunked, event, error_pages_, 301);
+            } catch (std::exception& e) {(void)e;}
+        }
+        std::string full_request;
+        if (token_size == 1 && token_location.at(0) == "/")
+            full_request = "/";
+        else
+            for (size_t l = 0; l < token_size; ++l)
+                full_request.append("/" + token_location.at(l));
+        if (found_location.at(most_precise) == full_request || found_location.at(most_precise).find(".") != std::string::npos)
+        {
+            location_it = std::next(locations_.begin(), most_precise);
+            if (location_it->getPath() == "/")
+                file_path = config_.getRoot() + config_.getIndex();
+            else
+                file_path = config_ .getRoot() + location_it->getIndex();
+        }
+    }
+    if (file_path.empty())
+    {
+        if (setupResponse(client_fd, "404 Not Found", chunked, event, error_pages_, 404) == -1)
+            return -1;
+        return 0;
+    }
+    return 1;
+}
+
+void Server::setPosibleLocations(size_t token_size, std::vector<std::string>& token_location, std::map<size_t, std::string>& found_location)
+{
+    size_t location_size = locations_.size();
+    if (token_size > 0 && token_location.at(token_size -1).find(".") != std::string::npos)
+    {
+        token_location.insert(token_location.begin(), token_location.at(token_size - 1));
+        ++token_size;
+    }
+    if (token_size == 1 && token_location.at(0) == "/")
+        found_location.insert(std::pair<size_t, std::string>(0, "/"));
+    else
+    {
+        for (size_t i = 0; i < token_size; ++i)
+        {
+            size_t current = token_size - i;
+            std::string loc = "";
+            for (size_t j = 0; j < current; ++j)
+                loc.append("/" + token_location.at(j));
+            for (size_t k = 0; k < location_size; ++k)
+            {
+                try
+                {
+                    if (locations_.at(k).getPath().compare(loc) == 0)
+                        found_location.insert(std::pair<size_t, std::string>(k, locations_.at(k).getPath()));
+                }
+                catch (std::exception& e) {(void)e;}
+            }
+        }
+    }
 }
 
 /**
@@ -821,32 +968,30 @@ int Server::checkLocations(std::vector<Location>::iterator& location_it, std::ve
  */
 int Server::checkAllowedMethods(std::vector<Location>::iterator& location_it, int client_fd, bool& chunked, epoll_event* event, std::string& method)
 {
-	std::vector<std::string>::const_iterator method_it = location_it->getAllowedMethods().begin();
-	std::vector<std::string>::const_iterator method_ite = location_it->getAllowedMethods().end();
-	while (method_it != method_ite)
-	{
-		if (method_it->empty())
-		{
-			std::cerr << "handle respone request buffer not empty";
-			if (setupResponse(client_fd, "500 Internal Server Error", chunked, event, error_pages_, 500) == -1)
-				return -1;
-			return 0;
-		}
-		if (method_it->compare(method) == 0)
-			break;
-		++method_it;
-	}
-	if (method_it == method_ite)
-	{
-		if (setupResponse(client_fd, "400 Bad Request", chunked, event, error_pages_, 400) == -1)
-		{
-			if (setupResponse(client_fd, "500 Internal Server Error", chunked, event, error_pages_, 500) == -1)
-				close(client_fd);
-			return -1;
-		}
-		return 0;
-	}
-	return 1;
+    std::vector<std::string>::const_iterator method_it = location_it->getAllowedMethods().begin();
+    std::vector<std::string>::const_iterator method_ite = location_it->getAllowedMethods().end();
+    while (method_it != method_ite)
+    {
+        if (method_it->empty())
+        {
+            std::cerr << "handle respone request buffer not empty";
+            return setupResponse(client_fd, "500 Internal Server Error", chunked, event, error_pages_, 500);
+            }
+        if (method_it->compare(method) == 0)
+            break;
+        ++method_it;
+    }
+    if (method_it == method_ite)
+    {
+        if (setupResponse(client_fd, "400 Bad Request", chunked, event, error_pages_, 400) == -1)
+        {
+            if (setupResponse(client_fd, "500 Internal Server Error", chunked, event, error_pages_, 500) == -1)
+                close(client_fd);
+            return -1;
+        }
+        return 0;
+    }
+    return 1;
 }
 
 /**
@@ -862,28 +1007,30 @@ int Server::checkAllowedMethods(std::vector<Location>::iterator& location_it, in
  */
 int Server::checkFile(std::string& file_path, int client_fd, bool& chunked, epoll_event* event, std::vector<Location>::iterator& location_it)
 {
-	if (fileExists(file_path))
-	{
-		if (filePermission(file_path))
-		{
-			std::cout << "file_path: " << file_path << std::endl;
-			return fileResponseSetup(client_fd, "200 OK", chunked, event, 200, file_path);
-		}
-		else
-			return fileResponseSetup(client_fd, "403 Forbidden", chunked, event, 403);
-	}
-	else if (fileExists(root_path_ + location_it->getIndex()))
-	{
-		if (filePermission(root_path_ + location_it->getIndex()))
-			return fileResponseSetup(client_fd, "200 OK", chunked, event, 200, root_path_ + location_it->getIndex());
-		else
-			return fileResponseSetup(client_fd, "403 Forbidden", chunked, event, 403);
-	}
-	else
-	{
-		std::cerr << "file_path: \"" << file_path << "\" not found\n";
-		return fileResponseSetup(client_fd, "404 Not Found", chunked, event, 404);
-	}
+    if (fileExists(file_path))
+    {
+        if (filePermission(file_path))
+        {
+            std::cout << "file_path: " << file_path << std::endl;
+            return fileResponseSetup(client_fd, "200 OK", chunked, event, 200, file_path);
+        }
+        else
+            return fileResponseSetup(client_fd, "403 Forbidden", chunked, event, 403);
+    }
+    else if (location_it->getAutoindex())
+        return 0;
+    else if (fileExists(root_path_ + location_it->getIndex()))
+    {
+        if (filePermission(root_path_ + location_it->getIndex()))
+            return fileResponseSetup(client_fd, "200 OK", chunked, event, 200, root_path_ + location_it->getIndex());
+        else
+            return fileResponseSetup(client_fd, "403 Forbidden", chunked, event, 403);
+    }
+    else
+    {
+        std::cerr << "file_path: \"" << file_path << "\" not found\n";
+        return fileResponseSetup(client_fd, "404 Not Found", chunked, event, 404);
+    }
 }
 
 /**
@@ -900,25 +1047,25 @@ int Server::checkFile(std::string& file_path, int client_fd, bool& chunked, epol
  */
 int Server::fileResponseSetup(int client_fd, std::string code_string, bool& chunked, epoll_event* event, uint code, std::string location)
 {
-	if (code == 200)
-	{
-		if (setupResponse(client_fd, code_string, chunked, event, error_pages_, code, location))
-		{
-			if (setupResponse(client_fd, "500 Internal Server Error", chunked, event, error_pages_, 500) == -1)
-				close(client_fd);
-			return -1;
-		}
-	}
-	else
-	{
-		if (setupResponse(client_fd, code_string, chunked, event, error_pages_, code) == -1)
-		{
-			if (setupResponse(client_fd, "500 Internal Server Error", chunked, event, error_pages_, 500) == -1)
-				close(client_fd);
-			return -1;
-		}
-	}
-	return 1;
+    if (code == 200)
+    {
+        if (setupResponse(client_fd, code_string, chunked, event, error_pages_, code, location))
+        {
+            if (setupResponse(client_fd, "500 Internal Server Error", chunked, event, error_pages_, 500) == -1)
+                close(client_fd);
+            return -1;
+        }
+    }
+    else
+    {
+        if (setupResponse(client_fd, code_string, chunked, event, error_pages_, code) == -1)
+        {
+            if (setupResponse(client_fd, "500 Internal Server Error", chunked, event, error_pages_, 500) == -1)
+                close(client_fd);
+            return -1;
+        }
+    }
+    return 1;
 }
 
 /**
@@ -936,36 +1083,36 @@ int Server::fileResponseSetup(int client_fd, std::string code_string, bool& chun
  */
 int Server::setupResponse(int client_fd, std::string status, bool& chunked, epoll_event* event, std::map<uint, std::string>& error_pages, uint number, std::string location)
 {
-	if (number == 200)
-	{
-		if (sendResponse(client_fd, status, location, chunked) == -1)
-			return -1;
-		doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
-		close(client_fd);
-	}
-	else
-	{
-		std::map<uint, std::string>::iterator error_page = error_pages.find(number);
-		if (error_page == error_pages.end())
-		{
-			std::string fall_back = "example/errorPages/";
-			fall_back.append(std::to_string(number));
-			fall_back.append(".html");
-			if (sendResponse(client_fd, status, fall_back, chunked) == -1)
-				return -1;
-			doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
-			close(client_fd);
-		}
-		else
-		{
-			location.insert(0UL, config_.getRoot());
-			if (sendResponse(client_fd, status, location + error_page->second, chunked) == -1)
-				return -1;
-			doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
-			close(client_fd);
-		}
-	}
-	return 0;
+    if (number == 200)
+    {
+        if (sendResponse(client_fd, status, location, chunked) == -1)
+            return -1;
+        doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
+        close(client_fd);
+    }
+    else
+    {  
+        std::map<uint, std::string>::iterator error_page = error_pages.find(number);
+        if (error_page == error_pages.end())
+        {
+            std::string fall_back = "example/errorPages/";
+            fall_back.append(std::to_string(number));
+            fall_back.append(".html");
+            if (sendResponse(client_fd, status, fall_back, chunked) == -1)
+                return -1;
+            doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
+            close(client_fd);
+        }
+        else
+        {
+            location.insert(0UL, config_.getRoot());
+            if (sendResponse(client_fd, status, location + error_page->second, chunked) == -1)
+                return -1;
+            doEpollCtl(EPOLL_CTL_DEL, client_fd, event);
+            close(client_fd);
+        }
+    }
+    return 0;
 }
 
 /**
@@ -979,42 +1126,62 @@ int Server::setupResponse(int client_fd, std::string status, bool& chunked, epol
  * @return -1 on error
  */
 
-int Server::sendResponse(int client_fd, const std::string& status, const std::string& file_location, bool& chunked)
+int Server::sendResponse(int client_fd, const std::string& status, const std::string& file_location, bool& chunked, bool d_list)
 {
-	std::ostringstream response;
-	response << "HTTP/1.1 " << status << "\r\n";
-	response << "Connection: close\r\n";
+    bool content = false;
+    std::ostringstream response;
+    response << "HTTP/1.1 " << status << "\r\n";
+    response << "Connection: close\r\n";
 
-	std::ifstream file_stream(file_location, std::ios::binary);
-	if (!file_stream.is_open())
-	{
-		std::cerr << "files_stream open: " << file_location << std::endl;
-		return -1;
-	}
+    if (d_list)
+    {
+        response << "Content-Type" << getContentType("x.html") << "\r\n";
+        response << "Content-Length: " << file_location.size() << "\r\n\r\n";
+        response << file_location;
+        if (send(client_fd, response.str().c_str(), response.str().size(), 0) == -1)
+            return -1;
+        return 0;
+    }
 
-	response << "Content-Type: " << getContentType(file_location) << "\r\n";
+    response << "Content-Type: " << getContentType(file_location) << "\r\n";
+    std::ifstream file_stream(file_location, std::ios::binary);
+    if (!file_stream.is_open())
+    {
+        std::cerr << "files_stream open: " << file_location << std::endl;
+        return -1;
+    }
 
-	if (chunked)
-	{
-		response << "Transfer-Encoding: chunked\r\n\r\n";
-		if (send(client_fd, response.str().c_str(), response.str().size(), 0) < 0)
-			return -1;
-		if (sendChunkedResponse(client_fd, file_stream) == -1)
-			return -1;
-		chunked = false;
-	}
-	else
-	{
-		file_stream.seekg(0, std::ios::end);
-		std::streamsize file_size = file_stream.tellg();
-		file_stream.seekg(0, std::ios::beg);
-		response << "Content-Length: " << file_size << "\r\n\r\n";
-		if (send(client_fd, response.str().c_str(), response.str().size(), 0) < 0)
-			return -1;
-		if (sendFile(client_fd, file_stream) == -1)
-			return -1;
-	}
-	return 0;
+
+    if (chunked)
+    {
+        response << "Transfer-Encoding: chunked\r\n\r\n";
+        if (send(client_fd, response.str().c_str(), response.str().size(), 0) < 0)
+            return -1;
+        if (sendChunkedResponse(client_fd, file_stream) == -1)
+            return -1;
+        chunked = false;
+    }
+    else
+    {
+        if (file_stream.good())
+        {
+            content = true;
+            file_stream.seekg(0, std::ios::end);
+            std::streamsize file_size = file_stream.tellg();
+            file_stream.seekg(0, std::ios::beg);
+            response << "Content-Length: " << file_size << "\r\n\r\n";
+        }
+        else
+            response << "Content-Length: 0\r\n\r\n";
+        if (send(client_fd, response.str().c_str(), response.str().size(), 0) < 0)
+            return -1;
+        if (content)
+        {
+            if (sendFile(client_fd, file_stream) == -1)
+            	return -1;
+        }
+    }
+    return 0;
 }
 
 /**
@@ -1027,21 +1194,21 @@ int Server::sendResponse(int client_fd, const std::string& status, const std::st
  */
 int Server::sendChunkedResponse(int client_Fd, std::ifstream& file_stream)
 {
-	char buffer[BUFFER_SIZE];
-	while(file_stream.read(buffer, BUFFER_SIZE) || file_stream.gcount() > 0)
-	{
-		std::ostringstream chunk;
-		chunk << std::hex << file_stream.gcount() << "\r\n"; // chunk size in hex
-		if(send(client_Fd, chunk.str().c_str(), chunk.str().size(), 0) < 0)
-			return -1;
-		if(send(client_Fd, buffer, file_stream.gcount(), 0) < 0)
-			return -1;
-		if (send(client_Fd, "\r\n", 2, 0) < 0)
-			return -1;
-	}
-	if (send(client_Fd, "0\r\n\r\n", 5, 0) < 0) // Last chunk (size 0) indicates end of transfer
-		return -1;
-	return 0;
+    char buffer[BUFFER_SIZE];
+    while(file_stream.read(buffer, BUFFER_SIZE) || file_stream.gcount() > 0)
+    {
+        std::ostringstream chunk;
+        chunk << std::hex << file_stream.gcount() << "\r\n"; // chunk size in hex
+        if(send(client_Fd, chunk.str().c_str(), chunk.str().size(), 0) < 0)
+            return -1;
+        if(send(client_Fd, buffer, file_stream.gcount(), 0) < 0)
+            return -1;
+        if (send(client_Fd, "\r\n", 2, 0) < 0)
+            return -1;
+    }
+    if (send(client_Fd, "0\r\n\r\n", 5, 0) < 0) // Last chunk (size 0) indicates end of transfer
+        return -1;
+    return 0;
 }
 
 /**
@@ -1054,14 +1221,14 @@ int Server::sendChunkedResponse(int client_Fd, std::ifstream& file_stream)
  */
 int Server::sendFile(int client_fd, std::ifstream& file_stream)
 {
-	char buffer[BUFFER_SIZE];
-	if (file_stream.bad())
-		return -1;
-	while (file_stream.read(buffer, BUFFER_SIZE) || file_stream.gcount() > 0)
-	{
-		if (send(client_fd, buffer, file_stream.gcount(), MSG_NOSIGNAL) < 0)
-			return -1;
-	}
+    char buffer[BUFFER_SIZE];
+    if (file_stream.bad())
+        return -1;
+    while (file_stream.read(buffer, BUFFER_SIZE) || file_stream.gcount() > 0)
+    {
+        if (send(client_fd, buffer, file_stream.gcount(), MSG_NOSIGNAL) < 0)
+            return -1;
+    }
 	return 0;
 }
 
@@ -1073,29 +1240,29 @@ int Server::sendFile(int client_fd, std::ifstream& file_stream)
  */
 std::string Server::getContentType(const std::string& file_path)
 {
-	size_t dot_pos = file_path.rfind('.');
-	if (dot_pos == std::string::npos)
-		return "application/octet-stream"; // Default binary type
-	std::string extension = file_path.substr(dot_pos);
-	if (extension == ".html")
-		return "text/html";
-	if (extension == ".css")
-		return "text/css";
-	if (extension == ".js")
-		return "application/javascript";
-	if (extension == ".json")
-		return "application/json";
-	if (extension == ".png")
-		return "image/png";
-	if (extension == ".jpg" || extension == ".jpeg")
-		return "image/jpeg";
-	if (extension == ".gif")
-		return "image/gif";
-	if (extension == ".svg")
-		return "image/svg+xml";
-	if (extension == ".txt")
-		return "text/plain";
-	return "application/octet-stream"; // Default for unknown types
+    size_t dot_pos = file_path.rfind('.');
+    if (dot_pos == std::string::npos)
+        return "application/octet-stream"; // Default binary type
+    std::string extension = file_path.substr(dot_pos);
+    if (extension == ".html")
+        return "text/html";
+    if (extension == ".css")
+        return "text/css";
+    if (extension == ".js")
+        return "application/javascript";
+    if (extension == ".json")
+        return "application/json";
+    if (extension == ".png")
+        return "image/png";
+    if (extension == ".jpg" || extension == ".jpeg")
+        return "image/jpeg";
+    if (extension == ".gif")
+        return "image/gif";
+    if (extension == ".svg")
+        return "image/svg+xml";
+    if (extension == ".txt")
+        return "text/plain";
+    return "application/octet-stream"; // Default for unknown types
 }
 
 /**
@@ -1107,8 +1274,8 @@ std::string Server::getContentType(const std::string& file_path)
  */
 bool Server::fileExists(const std::string& path)
 {
-	struct stat buffer;
-	return stat(path.c_str(), &buffer) == 0 && S_ISREG(buffer.st_mode);
+    struct stat buffer;
+    return stat(path.c_str(), &buffer) == 0 && S_ISREG(buffer.st_mode);
 }
 
 /**
@@ -1120,9 +1287,9 @@ bool Server::fileExists(const std::string& path)
  */
 bool Server::filePermission(const std::string& path)
 {
-	struct stat buffer;
-	stat(path.c_str(), &buffer);
-	return buffer.st_mode & S_IROTH;
+    struct stat buffer;
+    stat(path.c_str(), &buffer);
+    return buffer.st_mode & S_IROTH;
 }
 
 /**
@@ -1137,11 +1304,11 @@ bool Server::filePermission(const std::string& path)
  */
 int Server::doEpollCtl(int mode, int client_fd, epoll_event* event)
 {
-	if (epoll_ctl(epoll_fd_, mode, client_fd, event) == -1)
-	{
-		int nr = checkErrno(errno, client_fd, *event);
-		if (nr < 0)
-			return nr;
-	}
-	return 0;
+    if (epoll_ctl(epoll_fd_, mode, client_fd, event) == -1)
+    {
+        int nr = checkErrno(errno, client_fd, *event);
+        if (nr < 0)
+            return nr;
+    }
+    return 0;
 }
