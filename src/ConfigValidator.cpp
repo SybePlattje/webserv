@@ -28,7 +28,7 @@ void ConfigValidator::validatePath(const std::string& path, const std::string& c
     if (path.length() > MAX_PATH_LENGTH) {
         throw ValidationError(context + ": Path exceeds maximum length: " + path);
     }
-    if (!isValidPath(path)) {
+    if (!std::regex_match(path, path_pattern_)) {
         throw ValidationError(context + ": Invalid characters in path: " + path);
     }
 }
@@ -40,17 +40,9 @@ void ConfigValidator::validateFilename(const std::string& filename, const std::s
     if (filename[0] == '/') {
         throw ValidationError(context + ": Filename should not start with /: " + filename);
     }
-    if (!isValidFilename(filename)) {
+    if (!std::regex_match(filename, filename_pattern_)) {
         throw ValidationError(context + ": Invalid characters in filename: " + filename);
     }
-}
-
-bool ConfigValidator::isValidPath(const std::string& path) {
-    return std::regex_match(path, path_pattern_);
-}
-
-bool ConfigValidator::isValidFilename(const std::string& filename) {
-    return std::regex_match(filename, filename_pattern_);
 }
 
 void ConfigValidator::validatePort(uint16_t port) {
@@ -99,6 +91,38 @@ void ConfigValidator::validateClientMaxBodySize(uint64_t size) {
     }
 }
 
+void ConfigValidator::validateReturnDirective(const Location::ReturnDirective& ret, const std::string& context) {
+    if (ret.type == Location::ReturnType::NONE) {
+        return;  // No return directive to validate
+    }
+
+    // Validate redirect
+    if (ret.type == Location::ReturnType::REDIRECT) {
+        if (ret.body.empty()) {
+            throw ValidationError(context + ": Redirect requires a URL");
+        }
+        if (!isValidRedirectCode(ret.code)) {
+            throw ValidationError(context + ": Invalid redirect code: " + std::to_string(ret.code));
+        }
+        validatePath(ret.body, context + " redirect URL");
+    }
+    // Validate response
+    else if (ret.type == Location::ReturnType::RESPONSE) {
+        if (!isValidResponseCode(ret.code)) {
+            throw ValidationError(context + ": Invalid response code: " + std::to_string(ret.code));
+        }
+        // Message is optional for responses, no validation needed
+    }
+}
+
+bool ConfigValidator::isValidRedirectCode(unsigned int code) {
+    return code == 301 || code == 302 || code == 303 || code == 307 || code == 308;
+}
+
+bool ConfigValidator::isValidResponseCode(unsigned int code) {
+    return code == 200 || code == 400 || code == 403 || code == 404 || code == 405;
+}
+
 void ConfigValidator::validateLocations(const std::vector<std::shared_ptr<Location>>& locations) {
     if (locations.empty()) {
         throw ValidationError("At least one location block is required");
@@ -124,8 +148,10 @@ void ConfigValidator::validateLocation(const Location& location) {
     
     validateMethods(location.getAllowedMethods());
 
-    if (!location.getRedirect().empty()) {
-        validatePath(location.getRedirect(), "location redirect");
+    // Validate return directive if present
+    if (location.hasReturn()) {
+        validateReturnDirective(location.getReturn(), 
+                              "Location " + location.getPath());
     }
 }
 

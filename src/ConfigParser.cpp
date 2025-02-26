@@ -60,11 +60,42 @@ uint64_t ConfigParser::expectNumber(const std::string& error_msg) {
     return value;
 }
 
+void ConfigParser::parseReturn(ConfigBuilder& builder) {
+    // Parse status code
+    unsigned int code = static_cast<unsigned int>(expectNumber("Expected status code"));
+
+    // Get optional URL or message
+    std::string body;
+    if (current_token_.type == TokenType::IDENTIFIER || 
+        current_token_.type == TokenType::STRING) {
+        body = (current_token_.type == TokenType::STRING) ? 
+               current_token_.value : expectIdentifier("Expected URL or message");
+        
+        if (current_token_.type == TokenType::STRING) {
+            advance();  // Skip the string token if we consumed it
+        }
+    }
+
+    // Handle different types of return directives
+    if ((code >= 301 && code <= 303) || code == 307 || code == 308) {
+        // Redirect requires a URL
+        if (body.empty()) {
+            throw ParseError("Redirect requires a URL", current_token_.line, current_token_.column);
+        }
+        builder.setLocationRedirect(code, body);
+    } else if (code == 200 || (code >= 400 && code <= 405)) {
+        // Response with optional message
+        builder.setLocationResponse(code, body);
+    } else {
+        throw ParseError("Invalid status code for return directive", 
+                        current_token_.line, current_token_.column);
+    }
+}
+
 std::unique_ptr<Configuration> ConfigParser::parseConfig() {
     ConfigBuilder builder;
     advance(); // Get first token
 
-    // Must start with 'server'
     if (current_token_.value != "server") {
         throw ParseError("Expected 'server' block", current_token_.line, current_token_.column);
     }
@@ -72,7 +103,6 @@ std::unique_ptr<Configuration> ConfigParser::parseConfig() {
 
     parseServerBlock(builder);
 
-    // Make sure we've reached the end
     if (current_token_.type != TokenType::END_OF_FILE) {
         throw ParseError("Unexpected content after server block", 
                         current_token_.line, current_token_.column);
@@ -90,7 +120,7 @@ void ConfigParser::parseServerBlock(ConfigBuilder& builder) {
         }
 
         if (current_token_.value == "location") {
-            advance(); // Skip 'location'
+            advance();
             parseLocationBlock(builder);
         } else {
             parseDirective(builder, false);
@@ -145,8 +175,7 @@ void ConfigParser::parseDirective(ConfigBuilder& builder, bool in_location) {
             }
             builder.setLocationAutoindex(value == "on");
         } else if (directive == "return") {
-            std::string redirect = expectIdentifier("Expected redirect path");
-            builder.setLocationRedirect(redirect);
+            parseReturn(builder);
         } else {
             throw ParseError("Unknown location directive: " + directive, 
                            current_token_.line, current_token_.column);

@@ -4,6 +4,7 @@
 #include "Configuration.hpp"
 #include "Location.hpp"
 #include <memory>
+#include <stdexcept>
 
 class ConfigBuilder {
 public:
@@ -46,33 +47,54 @@ public:
     }
 
     void setLocationRoot(const std::string& root) {
-        if (current_location_) {
-            current_location_->root_ = root;
+        if (!current_location_) {
+            throw std::runtime_error("No active location block");
         }
+        current_location_->root_ = root;
     }
 
     void setLocationIndex(const std::string& index) {
-        if (current_location_) {
-            current_location_->index_ = index;
+        if (!current_location_) {
+            throw std::runtime_error("No active location block");
         }
+        current_location_->index_ = index;
     }
 
     void setLocationMethods(const std::vector<std::string>& methods) {
-        if (current_location_) {
-            current_location_->allowed_methods_ = methods;
+        if (!current_location_) {
+            throw std::runtime_error("No active location block");
         }
+        current_location_->allowed_methods_ = methods;
     }
 
     void setLocationAutoindex(bool enabled) {
-        if (current_location_) {
-            current_location_->autoindex_ = enabled;
+        if (!current_location_) {
+            throw std::runtime_error("No active location block");
         }
+        current_location_->autoindex_ = enabled;
     }
 
-    void setLocationRedirect(const std::string& redirect) {
-        if (current_location_) {
-            current_location_->redirect_ = redirect;
+    // New return directive methods
+    void setLocationRedirect(unsigned int code, const std::string& url) {
+        if (!current_location_) {
+            throw std::runtime_error("No active location block");
         }
+        if (!Location::isValidRedirectCode(code)) {
+            throw std::runtime_error("Invalid redirect status code: " + std::to_string(code));
+        }
+        current_location_->return_directive_ = Location::ReturnDirective(
+            Location::ReturnType::REDIRECT, code, url);
+    }
+
+    void setLocationResponse(unsigned int code, const std::string& message = "") {
+        if (!current_location_) {
+            throw std::runtime_error("No active location block");
+        }
+        if (!Location::isValidResponseCode(code)) {
+            throw std::runtime_error("Invalid response status code: " + std::to_string(code));
+        }
+        current_location_->return_directive_ = Location::ReturnDirective(
+            Location::ReturnType::RESPONSE, code, message);
     }
 
     void endLocation() {

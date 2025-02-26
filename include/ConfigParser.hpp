@@ -41,6 +41,7 @@ private:
     void parseServerBlock(ConfigBuilder& builder);
     void parseLocationBlock(ConfigBuilder& builder);
     void parseDirective(ConfigBuilder& builder, bool in_location);
+    void parseReturn(ConfigBuilder& builder);  // New method for return directive
 
     // Helper methods
     Token getCurrentToken() const { return current_token_; }

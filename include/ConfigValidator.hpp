@@ -38,6 +38,11 @@ private:
     static void validateServerName(const std::string& name);
     static void validateClientMaxBodySize(uint64_t size);
 
+    // Return directive validation
+    static void validateReturnDirective(const Location::ReturnDirective& ret, const std::string& context);
+    static bool isValidRedirectCode(unsigned int code);
+    static bool isValidResponseCode(unsigned int code);
+
     // Location validation
     static void validateLocations(const std::vector<std::shared_ptr<Location>>& locations);
     static void validateLocation(const Location& location);

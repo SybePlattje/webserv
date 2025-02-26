@@ -3,6 +3,24 @@
 #include <iostream>
 #include <fstream>
 
+// Helper function to print return directive information
+void printReturnDirective(const Location::ReturnDirective& ret) {
+    if (ret.type == Location::ReturnType::NONE) {
+        return;
+    }
+    
+    std::cout << "  Return: ";
+    if (ret.type == Location::ReturnType::REDIRECT) {
+        std::cout << ret.code << " -> " << ret.body << " (Redirect)\n";
+    } else {
+        std::cout << ret.code;
+        if (!ret.body.empty()) {
+            std::cout << " \"" << ret.body << "\"";
+        }
+        std::cout << " (Response)\n";
+    }
+}
+
 int main(int argc, char* argv[]) {
     if (argc != 2) {
         std::cerr << "Usage: " << argv[0] << " <config_file>\n";
@@ -41,19 +59,30 @@ int main(int argc, char* argv[]) {
         // Print locations
         std::cout << "\nLocations:\n";
         for (const auto& location : config->getLocations()) {
-            std::cout << "\nPath: " << location->getPath() << "\n"
-                      << "  Root: " << location->getRoot() << "\n"
-                      << "  Index: " << location->getIndex() << "\n"
-                      << "  Autoindex: " << (location->getAutoindex() ? "on" : "off") << "\n"
-                      << "  Methods:";
+            if (!location) continue;  // Skip null locations if any
             
-            for (const auto& method : location->getAllowedMethods()) {
-                std::cout << " " << method;
+            std::cout << "\nPath: " << location->getPath() << "\n";
+            
+            if (!location->getRoot().empty()) {
+                std::cout << "  Root: " << location->getRoot() << "\n";
             }
-            std::cout << "\n";
+            
+            if (!location->getIndex().empty()) {
+                std::cout << "  Index: " << location->getIndex() << "\n";
+            }
+            
+            std::cout << "  Autoindex: " << (location->getAutoindex() ? "on" : "off") << "\n";
+            
+            if (!location->getAllowedMethods().empty()) {
+                std::cout << "  Methods:";
+                for (const auto& method : location->getAllowedMethods()) {
+                    std::cout << " " << method;
+                }
+                std::cout << "\n";
+            }
 
-            if (!location->getRedirect().empty()) {
-                std::cout << "  Redirect: " << location->getRedirect() << "\n";
+            if (location->hasReturn()) {
+                printReturnDirective(location->getReturn());
             }
         }
 
