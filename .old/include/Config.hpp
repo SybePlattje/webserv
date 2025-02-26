@@ -8,8 +8,8 @@
 #include <string>
 #include <stdexcept>
 #include <map>
-#include "ConfigUtils.hpp"
-#include "Location.hpp"
+#include "old/ConfigUtils.hpp"
+#include "old/Location.hpp"
 
 #define DEFAULT_CONFIG "./webserv.conf"
 

@@ -1,102 +1,63 @@
 #ifndef CONFIG_VALIDATOR_HPP
 #define CONFIG_VALIDATOR_HPP
 
-#include <string>
-#include <map>
-#include <vector>
+#include "Configuration.hpp"
+#include "Location.hpp"
+#include <regex>
 #include <stdexcept>
-#include <filesystem>
-#include "IConfiguration.hpp"
-#include "LocationConfig.hpp"
+#include <set>
 
 class ConfigValidator {
 public:
-    class ValidationException : public std::runtime_error {
+    class ValidationError : public std::runtime_error {
     public:
-        explicit ValidationException(const std::string& msg) : std::runtime_error(msg) {}
+        explicit ValidationError(const std::string& msg) : std::runtime_error(msg) {}
     };
 
-    static void validateConfiguration(const IConfiguration& config) {
-        validatePort(config.getPort());
-        validatePath(config.getRoot());
-        if (!config.getIndex().empty()) {
-            validateFilename(config.getIndex());
-        }
-        validateErrorPages(config.getErrorPages());
-        validateLocations(config.getLocations());
-        validateServerName(config.getServerName());
-        validateClientMaxBodySize(config.getClientMaxBodySize());
-    }
+    // Constants for validation
+    static constexpr size_t MAX_BODY_SIZE = 1024 * 1024 * 1024; // 1GB
+    static constexpr size_t MAX_PATH_LENGTH = 4096;
+
+    // Main validation method
+    static void validate(const Configuration& config);
 
 private:
-    ConfigValidator() = delete;
-    
-    static void validatePort(uint16_t port) {
-        if (port == 0) {
-            throw ValidationException("Invalid port number: 0");
-        }
-    }
-    
-    static void validatePath(const std::string& path) {
-        if (path.empty()) {
-            throw ValidationException("Path cannot be empty");
-        }
-        if (path[0] != '/') {
-            throw ValidationException("Path must start with /: " + path);
-        }
-    }
-    
-    static void validateFilename(const std::string& filename) {
-        if (filename.empty()) {
-            throw ValidationException("Filename cannot be empty");
-        }
-        if (filename.find('/') == 0) {
-            throw ValidationException("Index file should not start with /: " + filename);
-        }
-    }
-    
-    static void validateErrorPages(const std::map<uint16_t, std::string>& pages) {
-        for (const auto& [code, path] : pages) {
-            if (code < 400 || code > 599) {
-                throw ValidationException("Invalid error code: " + std::to_string(code));
-            }
-            validatePath(path);  // Error pages must be absolute paths
-        }
-    }
-    
-    static void validateLocations(const std::vector<LocationConfig>& locations) {
-        for (const auto& location : locations) {
-            validatePath(location.getPath());  // Location paths must be absolute
-            if (!location.getRoot().empty()) {
-                validatePath(location.getRoot());  // Location root must be absolute
-            }
-            if (!location.getIndex().empty()) {
-                validateFilename(location.getIndex());  // Location index is a filename
-            }
-            validateAllowedMethods(location.getAllowedMethods());
-        }
-    }
-    
-    static void validateServerName(const std::string& name) {
-        if (name.empty()) {
-            throw ValidationException("Server name cannot be empty");
-        }
-    }
-    
-    static void validateClientMaxBodySize(uint64_t size) {
-        if (size == 0) {
-            throw ValidationException("Client max body size cannot be 0");
-        }
-    }
-    
-    static void validateAllowedMethods(const std::vector<std::string>& methods) {
-        static const std::vector<std::string> valid_methods = {"GET", "POST", "DELETE", "PUT", "HEAD"};
-        for (const auto& method : methods) {
-            if (std::find(valid_methods.begin(), valid_methods.end(), method) == valid_methods.end()) {
-                throw ValidationException("Invalid HTTP method: " + method);
-            }
-        }
-    }
+    ConfigValidator() = delete;  // Static class
+
+    // Path validation
+    static void validatePath(const std::string& path, const std::string& context);
+    static void validateFilename(const std::string& filename, const std::string& context);
+    static bool isValidPath(const std::string& path);
+    static bool isValidFilename(const std::string& filename);
+
+    // HTTP validation
+    static void validatePort(uint16_t port);
+    static void validateMethod(const std::string& method);
+    static void validateMethods(const std::vector<std::string>& methods);
+    static void validateErrorCode(uint16_t code);
+    static void validateServerName(const std::string& name);
+    static void validateClientMaxBodySize(uint64_t size);
+
+    // Location validation
+    static void validateLocations(const std::vector<std::shared_ptr<Location>>& locations);
+    static void validateLocation(const Location& location);
+    static void validateLocationPaths(const std::vector<std::shared_ptr<Location>>& locations);
+
+    // Regex patterns
+    static const std::regex path_pattern_;
+    static const std::regex filename_pattern_;
+    static const std::regex server_name_pattern_;
+    static const std::set<std::string> valid_methods_;
+};
+
+// Define static regex patterns
+inline const std::regex ConfigValidator::path_pattern_("^[/a-zA-Z0-9._-]+$");
+inline const std::regex ConfigValidator::filename_pattern_("^[a-zA-Z0-9._-]+$");
+inline const std::regex ConfigValidator::server_name_pattern_("^[a-zA-Z0-9.-]+$");
+
+// Define valid HTTP methods
+inline const std::set<std::string> ConfigValidator::valid_methods_ = {
+    "GET", "POST", "DELETE", "PUT", "HEAD", "OPTIONS", "TRACE"
 };
 
 #endif

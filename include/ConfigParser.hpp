@@ -1,59 +1,59 @@
 #ifndef CONFIG_PARSER_HPP
 #define CONFIG_PARSER_HPP
 
+#include "ConfigLexer.hpp"
+#include "ConfigBuilder.hpp"
 #include <memory>
 #include <string>
-#include <fstream>
-#include <sstream>
-#include "IConfiguration.hpp"
-#include "ConfigurationBuilder.hpp"
-#include "ConfigValidator.hpp"
+#include <vector>
 
 class ConfigParser {
 public:
-    class ParserException : public std::runtime_error {
+    // Parse exception with line and column information
+    class ParseError : public std::runtime_error {
     public:
-        ParserException(const std::string& msg, size_t line_number) 
-            : std::runtime_error("Line " + std::to_string(line_number) + ": " + msg) {}
+        ParseError(const std::string& msg, size_t line, size_t column)
+            : std::runtime_error(formatError(msg, line, column))
+            , line_(line)
+            , column_(column) {}
+
+        size_t getLine() const { return line_; }
+        size_t getColumn() const { return column_; }
+
+    private:
+        static std::string formatError(const std::string& msg, size_t line, size_t column) {
+            return "Line " + std::to_string(line) + ", Column " + 
+                   std::to_string(column) + ": " + msg;
+        }
+
+        size_t line_;
+        size_t column_;
     };
 
-    // Parse configuration from file
-    static std::unique_ptr<IConfiguration> parseFile(const std::string& path) {
-        std::ifstream file(path);
-        if (!file) {
-            throw ParserException("Failed to open config file: " + path, 0);
-        }
-        
-        ConfigurationBuilder builder;
-        parseConfiguration(file, builder);
-        auto config = builder.build();
-        ConfigValidator::validateConfiguration(*config);
-        return config;
-    }
+    // Parse from input stream
+    static std::unique_ptr<Configuration> parse(std::istream& input);
 
 private:
-    // Prevent instantiation
-    ConfigParser() = delete;
-    
-    static void parseConfiguration(std::istream& stream, ConfigurationBuilder& builder);
-    static void parseServerBlock(std::istream& stream, ConfigurationBuilder& builder, size_t& line_number);
-    static void parseLocationBlock(std::istream& stream, const std::string& path, 
-                                 ConfigurationBuilder& builder, size_t line_number);
-    
-    static bool isBlockStart(const std::string& line, std::string& blockType, 
-                           std::string& blockPath, size_t line_number);
-    static bool isBlockEnd(const std::string& line);
-    
-    static std::vector<std::string> tokenizeLine(const std::string& line);
-    static void handleDirective(const std::string& directive, 
-                              const std::vector<std::string>& tokens,
-                              ConfigurationBuilder& builder,
-                              size_t line_number);
-                              
-    static void validateDirective(const std::string& directive, 
-                                const std::vector<std::string>& tokens,
-                                size_t expected_tokens,
-                                size_t line_number);
+    ConfigParser(ConfigLexer& lexer) : lexer_(lexer) {}
+
+    // Main parsing methods
+    std::unique_ptr<Configuration> parseConfig();
+    void parseServerBlock(ConfigBuilder& builder);
+    void parseLocationBlock(ConfigBuilder& builder);
+    void parseDirective(ConfigBuilder& builder, bool in_location);
+
+    // Helper methods
+    Token getCurrentToken() const { return current_token_; }
+    void advance();
+    bool match(TokenType type);
+    void expect(TokenType type, const std::string& error_msg);
+    std::string expectIdentifier(const std::string& error_msg);
+    std::vector<std::string> expectIdentifierList(const std::string& error_msg);
+    uint64_t expectNumber(const std::string& error_msg);
+
+    // Member variables
+    ConfigLexer& lexer_;
+    Token current_token_{TokenType::INVALID, "", 0, 0};
 };
 
 #endif

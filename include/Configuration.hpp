@@ -1,36 +1,39 @@
 #ifndef CONFIGURATION_HPP
 #define CONFIGURATION_HPP
 
-#include "IConfiguration.hpp"
-#include "LocationConfig.hpp"
+#include <string>
 #include <map>
 #include <vector>
-#include <string>
+#include <cstdint>
+#include <memory>
 
-class Configuration : public IConfiguration {
+// Forward declaration
+class Location;
+
+class Configuration {
 public:
-    // Virtual destructor
-    virtual ~Configuration();
+    Configuration() = default;
+    ~Configuration() = default;
 
-    // Implementation of IConfiguration interface
-    uint16_t getPort() const override { return port_; }
-    const std::string& getServerName() const override { return server_name_; }
-    const std::string& getRoot() const override { return root_; }
-    const std::string& getIndex() const override { return index_; }
-    uint64_t getClientMaxBodySize() const override { return client_max_body_size_; }
-    const std::map<uint16_t, std::string>& getErrorPages() const override { return error_pages_; }
-    const std::vector<LocationConfig>& getLocations() const override { return locations_; }
+    // Getters
+    uint16_t getPort() const { return port_; }
+    const std::string& getServerName() const { return server_name_; }
+    const std::string& getRoot() const { return root_; }
+    const std::string& getIndex() const { return index_; }
+    uint64_t getClientMaxBodySize() const { return client_max_body_size_; }
+    const std::map<uint16_t, std::string>& getErrorPages() const { return error_pages_; }
+    const std::vector<std::shared_ptr<Location>>& getLocations() const { return locations_; }
 
 private:
-    friend class ConfigurationBuilder;  // Allow builder to modify private members
-    
+    friend class ConfigBuilder; // Only builder can modify configuration
+
     uint16_t port_ = 80;  // Default port
     std::string server_name_;
-    std::string root_;
-    std::string index_;
+    std::string root_ = "/";  // Default root
+    std::string index_ = "index.html";  // Default index
     uint64_t client_max_body_size_ = 1024 * 1024;  // Default: 1MB
     std::map<uint16_t, std::string> error_pages_;
-    std::vector<LocationConfig> locations_;
+    std::vector<std::shared_ptr<Location>> locations_;
 };
 
 #endif

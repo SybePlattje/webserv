@@ -1,38 +1,31 @@
 #ifndef LOCATION_HPP
 #define LOCATION_HPP
 
-#include <iostream>
-#include <sstream>
+#include <string>
 #include <vector>
-#include "ConfigUtils.hpp"
 
-class Location
-{
-	public:
-		Location(const std::string& path);
-		~Location();
-		Location(const Location& other);
-		Location& operator=(const Location& other);
-	
-		void parse(std::istream& stream);
-		const std::string& getPath() const;
-		const std::string& getRoot() const;
-		const std::string& getIndex() const;
-		const std::string& getReturn() const;
-		
-		const std::vector<std::string>& getAllowedMethods() const;
-		bool getAutoindex() const;
-		void printLocation() const; // For debugging
+class Location {
+public:
+    Location(const std::string& path) : path_(path) {}
+    ~Location() = default;
 
-	private:
-		std::string					path_;
-		std::string					root_;
-		std::string					index_;
-		std::string					return_;
-		std::vector<std::string>	allowed_methods_;
-		bool						autoindex_;
+    // Getters
+    const std::string& getPath() const { return path_; }
+    const std::string& getRoot() const { return root_; }
+    const std::string& getIndex() const { return index_; }
+    const std::vector<std::string>& getAllowedMethods() const { return allowed_methods_; }
+    bool getAutoindex() const { return autoindex_; }
+    const std::string& getRedirect() const { return redirect_; }
 
-		std::vector<std::string> tokenize(const std::string& line);
+private:
+    friend class ConfigBuilder; // Only builder can modify location
+
+    std::string path_;
+    std::string root_;
+    std::string index_ = "index.html";  // Default index
+    std::vector<std::string> allowed_methods_ = {"GET"};  // Default: GET only
+    bool autoindex_ = false;  // Default: autoindex off
+    std::string redirect_;
 };
 
 #endif

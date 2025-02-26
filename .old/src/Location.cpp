@@ -1,4 +1,4 @@
-#include "Location.hpp"
+#include "old/Location.hpp"
 
 Location::Location(const std::string& path) : path_(path), autoindex_(false) {}
 
