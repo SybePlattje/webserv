@@ -1,6 +1,6 @@
 #include "ConfigParser.hpp"
 
-std::unique_ptr<Configuration> ConfigParser::parse(std::istream& input) {
+std::unique_ptr<Config> ConfigParser::parse(std::istream& input) {
     ConfigLexer lexer(input);
     ConfigParser parser(lexer);
     return parser.parseConfig();
@@ -92,7 +92,7 @@ void ConfigParser::parseReturn(ConfigBuilder& builder) {
     }
 }
 
-std::unique_ptr<Configuration> ConfigParser::parseConfig() {
+std::unique_ptr<Config> ConfigParser::parseConfig() {
     ConfigBuilder builder;
     advance(); // Get first token
 

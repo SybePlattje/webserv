@@ -31,13 +31,13 @@ public:
     };
 
     // Parse from input stream
-    static std::unique_ptr<Configuration> parse(std::istream& input);
+    static std::unique_ptr<Config> parse(std::istream& input);
 
 private:
     ConfigParser(ConfigLexer& lexer) : lexer_(lexer) {}
 
     // Main parsing methods
-    std::unique_ptr<Configuration> parseConfig();
+    std::unique_ptr<Config> parseConfig();
     void parseServerBlock(ConfigBuilder& builder);
     void parseLocationBlock(ConfigBuilder& builder);
     void parseDirective(ConfigBuilder& builder, bool in_location);

@@ -1,6 +1,6 @@
 #include "ConfigValidator.hpp"
 
-void ConfigValidator::validate(const Configuration& config) {
+void ConfigValidator::validate(const Config& config) {
     // Validate server settings
     validatePort(config.getPort());
     validateServerName(config.getServerName());

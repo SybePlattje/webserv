@@ -1,7 +1,7 @@
 #ifndef CONFIG_VALIDATOR_HPP
 #define CONFIG_VALIDATOR_HPP
 
-#include "Configuration.hpp"
+#include "Config.hpp"
 #include "Location.hpp"
 #include <regex>
 #include <stdexcept>
@@ -19,7 +19,7 @@ public:
     static constexpr size_t MAX_PATH_LENGTH = 4096;
 
     // Main validation method
-    static void validate(const Configuration& config);
+    static void validate(const Config& config);
 
 private:
     ConfigValidator() = delete;  // Static class

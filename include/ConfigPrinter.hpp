@@ -1,22 +1,22 @@
 #ifndef CONFIG_PRINTER_HPP
 #define CONFIG_PRINTER_HPP
 
-#include "Configuration.hpp"
+#include "Config.hpp"
 #include "Location.hpp"
 #include <ostream>
 
 class ConfigPrinter {
 public:
     // Print the entire configuration
-    static void print(std::ostream& out, const Configuration& config);
+    static void print(std::ostream& out, const Config& config);
 
 private:
     ConfigPrinter() = delete;  // Static class
 
     // Helper methods for printing different parts
-    static void printServerInfo(std::ostream& out, const Configuration& config);
-    static void printErrorPages(std::ostream& out, const Configuration& config);
-    static void printLocations(std::ostream& out, const Configuration& config);
+    static void printServerInfo(std::ostream& out, const Config& config);
+    static void printErrorPages(std::ostream& out, const Config& config);
+    static void printLocations(std::ostream& out, const Config& config);
     static void printLocation(std::ostream& out, const Location& location);
     static void printReturnDirective(std::ostream& out, const Location::ReturnDirective& ret);
     static void printMethods(std::ostream& out, const std::vector<std::string>& methods);

@@ -1,22 +1,22 @@
 #include "ConfigParser.hpp"
 #include "ConfigValidator.hpp"
 #include "ConfigPrinter.hpp"
+#include "Config.hpp"
 #include <iostream>
 #include <fstream>
 
-int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        std::cerr << "Usage: " << argv[0] << " <config_file>\n";
-        return 1;
-    }
+# define DEFAULT_CONFIG "./webserv.conf"
 
+int main(int argc, char* argv[]) {
+    (void) argc;
     try {
-        std::ifstream config_file(argv[1]);
+        const std::string path_to_config = argv[1] ? argv[1] : DEFAULT_CONFIG;
+        std::ifstream config_file(path_to_config);
         if (!config_file) {
             std::cerr << "Error: Cannot open config file: " << argv[1] << "\n";
             return 1;
         }
-        std::unique_ptr<Configuration> config = ConfigParser::parse(config_file);
+        std::unique_ptr<Config> config = ConfigParser::parse(config_file);
 
         ConfigValidator::validate(*config);
 

@@ -34,21 +34,27 @@ public:
         }
     };
 
-    Location(const std::string& path) : path_(path) {}
+    Location(const std::string& path);
     ~Location() = default;
 
+    // Copy constructor
+    Location(const Location& other);
+
+    // Copy assignment operator
+    Location& operator=(const Location& other);
+
     // Getters
-    const std::string& getPath() const { return path_; }
-    const std::string& getRoot() const { return root_; }
-    const std::string& getIndex() const { return index_; }
-    const std::vector<std::string>& getAllowedMethods() const { return allowed_methods_; }
-    bool getAutoindex() const { return autoindex_; }
-    const ReturnDirective& getReturn() const { return return_directive_; }
+    const std::string& getPath() const;
+    const std::string& getRoot() const;
+    const std::string& getIndex() const;
+    const std::vector<std::string>& getAllowedMethods() const;
+    bool getAutoindex() const;
+    const ReturnDirective& getReturn() const;
 
     // Return directive helper methods
-    bool hasReturn() const { return return_directive_.type != ReturnType::NONE; }
-    bool hasRedirect() const { return return_directive_.isRedirect(); }
-    bool hasResponse() const { return return_directive_.isResponse(); }
+    bool hasReturn() const;
+    bool hasRedirect() const;
+    bool hasResponse() const;
 
 private:
     friend class ConfigBuilder; // Only builder can modify location

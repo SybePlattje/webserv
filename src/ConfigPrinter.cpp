@@ -1,6 +1,6 @@
 #include "ConfigPrinter.hpp"
 
-void ConfigPrinter::print(std::ostream& out, const Configuration& config) {
+void ConfigPrinter::print(std::ostream& out, const Config& config) {
     out << "Configuration loaded successfully:" << NEWLINE;
     
     printServerInfo(out, config);
@@ -12,7 +12,7 @@ void ConfigPrinter::print(std::ostream& out, const Configuration& config) {
     printLocations(out, config);
 }
 
-void ConfigPrinter::printServerInfo(std::ostream& out, const Configuration& config) {
+void ConfigPrinter::printServerInfo(std::ostream& out, const Config& config) {
     out << "Port: " << config.getPort() << NEWLINE
         << "Server name: " << config.getServerName() << NEWLINE
         << "Root: " << config.getRoot() << NEWLINE
@@ -21,7 +21,7 @@ void ConfigPrinter::printServerInfo(std::ostream& out, const Configuration& conf
         << "Number of locations: " << config.getLocations().size();
 }
 
-void ConfigPrinter::printErrorPages(std::ostream& out, const Configuration& config) {
+void ConfigPrinter::printErrorPages(std::ostream& out, const Config& config) {
     out << "Error pages:";
     const auto& error_pages = config.getErrorPages();
     if (error_pages.empty()) {
@@ -35,7 +35,7 @@ void ConfigPrinter::printErrorPages(std::ostream& out, const Configuration& conf
     }
 }
 
-void ConfigPrinter::printLocations(std::ostream& out, const Configuration& config) {
+void ConfigPrinter::printLocations(std::ostream& out, const Config& config) {
     out << "Locations:" << NEWLINE;
     
     for (const auto& location : config.getLocations()) {

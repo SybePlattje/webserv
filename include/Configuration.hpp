@@ -1,5 +1,5 @@
-#ifndef CONFIGURATION_HPP
-#define CONFIGURATION_HPP
+#ifndef CONFIG_HPP
+#define CONFIG_HPP
 
 #include <string>
 #include <map>
@@ -10,10 +10,10 @@
 // Forward declaration
 class Location;
 
-class Configuration {
+class Config {
 public:
-    Configuration() = default;
-    ~Configuration() = default;
+    Config() = default;
+    ~Config() = default;
 
     // Getters
     uint16_t getPort() const { return port_; }
@@ -27,7 +27,7 @@ public:
 private:
     friend class ConfigBuilder; // Only builder can modify configuration
 
-    uint16_t port_ = 80;  // Default port
+    uint16_t port_ = 9999;  // Default port
     std::string server_name_;
     std::string root_ = "/";  // Default root
     std::string index_ = "index.html";  // Default index
