@@ -9,8 +9,7 @@ int main(int argc, char* argv[]) {
     (void) argc;
     try {
         std::unique_ptr<Config> config = ConfigLoader::load(argv[1]);
-        ConfigPrinter::print(std::cout, *config);
-
+    
         return 0;
     }
     catch (const ConfigParser::ParseError& e) {
