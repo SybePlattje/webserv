@@ -28,7 +28,7 @@ private:
     friend class ConfigBuilder; // Only builder can modify configuration
 
     uint16_t port_ = 9999;  // Default port
-    std::string server_name_;
+    std::string server_name_ = "localhost"; // Default host
     std::string root_ = "/";  // Default root
     std::string index_ = "index.html";  // Default index
     uint64_t client_max_body_size_ = 1024 * 1024;  // Default: 1MB
