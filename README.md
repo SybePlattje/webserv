@@ -5,7 +5,7 @@
 ### Config
 
 - [x] Minimalistic Config parser
-- [ ] Full Config parser
+- [x] Full Config parser
 
 ### HTTP
 - [x] Server initialization
