@@ -29,7 +29,7 @@ enum e_RequestKeys
 class Server
 {
 	public:
-		Server(Config& config);
+		Server(const Config& config);
 		~Server();
 		int	setupEpoll();
 	private:

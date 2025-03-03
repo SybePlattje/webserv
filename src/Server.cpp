@@ -23,7 +23,7 @@ Server::Server(Config& config) : config_(config)
     root_path_ = config_.getRoot();
     locations_ = config.getLocations();
     error_pages_ = config.getErrorPages();
-    if (createServerSocket(config.getListen(), server_name) != 0)
+    if (createServerSocket(config.getPort(), server_name) != 0)
         throw std::runtime_error("failed to setup server socket");
 }
 

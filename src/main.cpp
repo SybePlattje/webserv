@@ -1,12 +1,31 @@
+#include "ConfigLoader.hpp"
+#include "ConfigPrinter.hpp"
 #include "Config.hpp"
+#include "ConfigParser.hpp"
+#include "ConfigValidator.hpp"
+#include <iostream>
 #include "Server.hpp"
 #include <signal.h>
 
-int main(int argc, char *argv[])
-{
-	::signal(SIGPIPE, SIG_IGN);
+int main(int argc, char* argv[]) {
+    ::signal(SIGPIPE, SIG_IGN);
 	(void) argc;
-	Config  config(argv[1]);
-	Server server(config);
-	server.setupEpoll();
+    try {
+        std::unique_ptr<Config> config = ConfigLoader::load(argv[1]);
+        Server server(*config);
+        server.setupEpoll();
+        return 0;
+    }
+    catch (const ConfigParser::ParseError& e) {
+        std::cerr << "Parse error: " << e.what() << "\n";
+        return 1;
+    }
+    catch (const ConfigValidator::ValidationError& e) {
+        std::cerr << "Validation error: " << e.what() << "\n";
+        return 1;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << "\n";
+        return 1;
+    }
 }

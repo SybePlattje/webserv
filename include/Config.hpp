@@ -1,51 +1,39 @@
-#ifndef	CONFIG_HPP
-# define CONFIG_HPP
+#ifndef CONFIG_HPP
+#define CONFIG_HPP
 
-# include <iostream>
-# include <vector>
-# include <fstream>
-# include <sstream>
-# include <string>
-# include <stdexcept>
-# include <map>
-# include "Location.hpp"
+#include <string>
+#include <map>
+#include <vector>
+#include <cstdint>
+#include <memory>
 
-# define DEFAULT_CONFIG "./webserv.conf"
+// Forward declaration
+class Location;
 
-class Config
-{
-	public:
-		Config(const char *argv);
-		~Config();
-		Config(const Config& other);
-		Config& operator=(const Config& other);
+class Config {
+public:
+    Config() = default;
+    ~Config() = default;
 
-		const uint& getListen();
-		const std::string& getServerName();
-		const std::string& getHost();
-		const std::string& getRoot();
-		const std::string& getIndex();
-		const std::map<uint, std::string>& getErrorPages();
-		const uint& getClientMaxBodySize();
-		const std::vector<Location>& getLocations();
-		void printConfig() const; // For debugging purposes;
+    // Getters
+    uint16_t getPort() const { return port_; }
+    const std::string& getServerName() const { return server_name_; }
+    const std::string& getRoot() const { return root_; }
+    const std::string& getIndex() const { return index_; }
+    uint64_t getClientMaxBodySize() const { return client_max_body_size_; }
+    const std::map<uint16_t, std::string>& getErrorPages() const { return error_pages_; }
+    const std::vector<std::shared_ptr<Location>>& getLocations() const { return locations_; }
 
-	private:
-		uint						listen_;
-		std::string					server_name_;
-		std::string					host_;
-		std::string					root_;
-		std::string					index_;
-		std::map<uint, std::string>	error_pages_;
-		uint						client_max_body_size_;
-		std::vector<Location>		locations_;
-		
-		std::vector<std::string> tokenize(const std::string& line);
-		void parseServerBlock(std::istream& stream);
-		void parseLocationBlock(std::istream& stream, const std::string& path);
-		bool isCommentOrEmpty(const std::string& line);
-		std::string extractBlockType(const std::string& line);
+private:
+    friend class ConfigBuilder; // Only builder can modify configuration
 
+    uint16_t port_ = 9999;  // Default port
+    std::string server_name_ = "localhost"; // Default host
+    std::string root_ = "/";  // Default root
+    std::string index_ = "index.html";  // Default index
+    uint64_t client_max_body_size_ = 1024 * 1024;  // Default: 1MB
+    std::map<uint16_t, std::string> error_pages_;
+    std::vector<std::shared_ptr<Location>> locations_;
 };
 
 #endif
