@@ -1,6 +1,4 @@
-#include "ConfigLoader.hpp"
-#include "ConfigParser.hpp"
-#include "ConfigValidator.hpp"
+#include "Config.hpp"
 #include <fstream>
 #include <iostream>
 

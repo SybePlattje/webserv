@@ -1,4 +1,4 @@
-#include "ConfigLexer.hpp"
+#include "Config.hpp"
 #include <cctype>
 
 void ConfigLexer::advance() {

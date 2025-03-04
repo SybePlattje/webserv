@@ -1,4 +1,4 @@
-#include "ConfigValidator.hpp"
+#include "Config.hpp"
 
 void ConfigValidator::validate(const Config& config) {
     // Validate server settings

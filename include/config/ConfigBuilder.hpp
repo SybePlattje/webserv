@@ -1,12 +1,13 @@
 #ifndef CONFIG_BUILDER_HPP
 #define CONFIG_BUILDER_HPP
 
-#include "Config.hpp"
 #include "Location.hpp"
 #include <memory>
 #include <string>
 #include <vector>
 #include <stdexcept>
+
+class Config;
 
 class ConfigBuilder {
 public:

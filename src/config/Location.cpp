@@ -1,4 +1,4 @@
-#include "Location.hpp"
+#include "Config.hpp"
 
 Location::Location(const std::string& path) : path_(path) {}
 

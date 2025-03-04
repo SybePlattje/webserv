@@ -1,9 +1,10 @@
 #ifndef CONFIG_PRINTER_HPP
 #define CONFIG_PRINTER_HPP
 
-#include "Config.hpp"
 #include "Location.hpp"
 #include <ostream>
+
+class Config;
 
 class ConfigPrinter {
 public:

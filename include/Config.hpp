@@ -1,6 +1,10 @@
 #ifndef CONFIG_HPP
 #define CONFIG_HPP
 
+#include "config/ConfigLoader.hpp"
+#include "config/ConfigPrinter.hpp"
+#include "config/ConfigParser.hpp"
+#include "config/ConfigValidator.hpp"
 #include <string>
 #include <map>
 #include <vector>

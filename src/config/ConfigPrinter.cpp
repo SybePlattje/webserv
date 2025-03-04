@@ -1,4 +1,4 @@
-#include "ConfigPrinter.hpp"
+#include "Config.hpp"
 
 void ConfigPrinter::print(std::ostream& out, const Config& config) {
     out << "Configuration loaded successfully:" << NEWLINE;

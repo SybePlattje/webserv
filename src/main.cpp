@@ -1,8 +1,4 @@
-#include "ConfigLoader.hpp"
-#include "ConfigPrinter.hpp"
 #include "Config.hpp"
-#include "ConfigParser.hpp"
-#include "ConfigValidator.hpp"
 #include <iostream>
 #include "Server.hpp"
 #include <signal.h>
@@ -14,6 +10,7 @@ int main(int argc, char* argv[]) {
         std::unique_ptr<Config> config = ConfigLoader::load(argv[1]);
         Server server(*config);
         server.setupEpoll();
+        // ConfigPrinter::print(std::cout, *config);
         return 0;
     }
     catch (const ConfigParser::ParseError& e) {

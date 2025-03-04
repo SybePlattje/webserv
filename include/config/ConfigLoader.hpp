@@ -1,11 +1,12 @@
 #ifndef CONFIGLOADER_HPP
 #define CONFIGLOADER_HPP
 
-#include "Config.hpp"
 #include <string>
 #include <memory>
 
-# define DEFAULT_CONFIG "./webserv.conf"
+#define DEFAULT_CONFIG "./webserv.conf"
+
+class Config;
 
 class ConfigLoader {
 public:

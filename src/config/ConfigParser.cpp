@@ -1,4 +1,4 @@
-#include "ConfigParser.hpp"
+#include "Config.hpp"
 
 std::unique_ptr<Config> ConfigParser::parse(std::istream& input) {
     ConfigLexer lexer(input);

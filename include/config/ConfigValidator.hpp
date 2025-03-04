@@ -1,11 +1,12 @@
 #ifndef CONFIG_VALIDATOR_HPP
 #define CONFIG_VALIDATOR_HPP
 
-#include "Config.hpp"
 #include "Location.hpp"
 #include <regex>
 #include <stdexcept>
 #include <set>
+
+class Config;
 
 class ConfigValidator {
 public:
