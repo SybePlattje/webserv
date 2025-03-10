@@ -42,7 +42,23 @@ private:
     void parseServerBlock(ConfigBuilder& builder);
     void parseLocationBlock(ConfigBuilder& builder);
     void parseDirective(ConfigBuilder& builder, bool in_location);
-    void parseReturn(ConfigBuilder& builder);
+
+    // Location directive handlers
+    void parseLocationDirective(ConfigBuilder& builder, const std::string& directive);
+    void parseLocationRoot(ConfigBuilder& builder);
+    void parseLocationIndex(ConfigBuilder& builder);
+    void parseLocationMethods(ConfigBuilder& builder);
+    void parseLocationAutoindex(ConfigBuilder& builder);
+    void parseLocationReturn(ConfigBuilder& builder);
+
+    // Server directive handlers
+    void parseServerDirective(ConfigBuilder& builder, const std::string& directive);
+    void parseServerListen(ConfigBuilder& builder);
+    void parseServerName(ConfigBuilder& builder);
+    void parseServerRoot(ConfigBuilder& builder);
+    void parseServerIndex(ConfigBuilder& builder);
+    void parseServerBodySize(ConfigBuilder& builder);
+    void parseServerErrorPage(ConfigBuilder& builder);
 
     // Helper methods for directive parsing
     void handleDirective(const std::string& directive, 
