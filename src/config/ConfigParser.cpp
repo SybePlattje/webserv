@@ -22,9 +22,9 @@ bool ConfigParser::match(TokenType type) {
 }
 
 void ConfigParser::expect(TokenType type, const std::string& error_msg) {
-    Token prev = current_token_;  // Store for error reporting
+    Token prev = current_token_;
     if (!match(type)) {
-        throw ParseError(error_msg, prev, true);  // Use end position
+        throw ParseError(error_msg, prev, true);
     }
 }
 
@@ -61,33 +61,60 @@ uint64_t ConfigParser::expectNumber(const std::string& error_msg) {
     return value;
 }
 
-void ConfigParser::parseReturn(ConfigBuilder& builder) {
-    // Parse status code
-    valueToken = current_token_;  // Store before reading value
-    unsigned int code = static_cast<unsigned int>(expectNumber("Expected status code"));
+void ConfigParser::expectSemicolon() {
+    if (!match(TokenType::SEMICOLON)) {
+        throw ParseError("Expected ';' after directive", valueToken, true);
+    }
+}
 
-    // Get optional URL or message
+std::string ConfigParser::readValue(const std::string& error_msg) {
+    valueToken = current_token_;
+    return expectIdentifier(error_msg);
+}
+
+std::vector<std::string> ConfigParser::readValueList(const std::string& error_msg) {
+    valueToken = current_token_;
+    return expectIdentifierList(error_msg);
+}
+
+uint64_t ConfigParser::readNumber(const std::string& error_msg) {
+    valueToken = current_token_;
+    return expectNumber(error_msg);
+}
+
+void ConfigParser::handleDirective(const std::string& directive,
+                                 ConfigBuilder& builder,
+                                 const DirectiveHandler& handler,
+                                 const ValueValidator& validator) {
+    std::string value = readValue("Expected value for " + directive);
+    if (validator) {
+        validator(valueToken);
+    }
+    handler(builder, value);
+    expectSemicolon();
+}
+
+void ConfigParser::parseReturn(ConfigBuilder& builder) {
+    unsigned int code = static_cast<unsigned int>(readNumber("Expected status code"));
+
     std::string body;
     if (current_token_.type == TokenType::IDENTIFIER ||
         current_token_.type == TokenType::STRING) {
-        valueToken = current_token_;  // Update for URL/message token
+        valueToken = current_token_;
         body = (current_token_.type == TokenType::STRING) ?
                current_token_.value : expectIdentifier("Expected URL or message");
         
         if (current_token_.type == TokenType::STRING) {
-            advance();  // Skip the string token if we consumed it
+            advance();
         }
     }
 
-    // Handle different types of return directives
     if ((code >= 301 && code <= 303) || code == 307 || code == 308) {
-        // Redirect requires a URL
         if (body.empty()) {
             throw ParseError("Redirect requires a URL", valueToken);
         }
         builder.setLocationRedirect(code, body);
     } else if (code == 200 || (code >= 400 && code <= 405)) {
-        // Response with optional message
         builder.setLocationResponse(code, body);
     } else {
         throw ParseError("Invalid status code for return directive", valueToken);
@@ -96,7 +123,7 @@ void ConfigParser::parseReturn(ConfigBuilder& builder) {
 
 std::unique_ptr<Config> ConfigParser::parseConfig() {
     ConfigBuilder builder;
-    advance(); // Get first token
+    advance();
 
     if (current_token_.value != "server") {
         throw ParseError("Expected 'server' block", current_token_);
@@ -128,7 +155,7 @@ void ConfigParser::parseServerBlock(ConfigBuilder& builder) {
         }
     }
 
-    advance(); // Skip closing brace
+    advance();
 }
 
 void ConfigParser::parseLocationBlock(ConfigBuilder& builder) {
@@ -145,85 +172,77 @@ void ConfigParser::parseLocationBlock(ConfigBuilder& builder) {
     }
 
     builder.endLocation();
-    advance(); // Skip closing brace
+    advance();
 }
 
 void ConfigParser::parseDirective(ConfigBuilder& builder, bool in_location) {
     std::string directive = expectIdentifier("Expected directive name");
-    
+
     if (in_location) {
         if (directive == "root") {
-            valueToken = current_token_;  // Store before reading value
-            std::string root = expectIdentifier("Expected root path");
-            builder.setLocationRoot(root);
+            handleDirective(directive, builder,
+                [](ConfigBuilder& b, const std::string& value) { b.setLocationRoot(value); });
         } else if (directive == "index") {
-            valueToken = current_token_;  // Store before reading value
-            auto index_files = expectIdentifierList("Expected index filename");
-            if (!index_files.empty()) {
-                builder.setLocationIndex(index_files[0]);
+            auto files = readValueList("Expected index filename");
+            if (!files.empty()) {
+                builder.setLocationIndex(files[0]);
             }
+            expectSemicolon();
         } else if (directive == "allow_methods") {
-            valueToken = current_token_;  // Store before reading value
-            auto methods = expectIdentifierList("Expected at least one HTTP method");
+            auto methods = readValueList("Expected at least one HTTP method");
             if (methods.empty()) {
                 throw ParseError("Expected at least one HTTP method", valueToken, true);
             }
             builder.setLocationMethods(methods);
+            expectSemicolon();
         } else if (directive == "autoindex") {
-            valueToken = current_token_;  // Store before reading value
-            std::string value = expectIdentifier("Expected 'on' or 'off'");
-            if (value != "on" && value != "off") {
-                throw ParseError("autoindex value must be 'on' or 'off'", valueToken, true);
-            }
-            builder.setLocationAutoindex(value == "on");
+            handleDirective(directive, builder,
+                [](ConfigBuilder& b, const std::string& value) { b.setLocationAutoindex(value == "on"); },
+                [](const Token& token) {
+                    if (token.value != "on" && token.value != "off") {
+                        throw ParseError("autoindex value must be 'on' or 'off'", token, true);
+                    }
+                });
         } else if (directive == "return") {
-            valueToken = current_token_;  // Store before reading value
             parseReturn(builder);
+            expectSemicolon();
         } else {
-            throw ParseError("Unknown location directive: " + directive, valueToken);
+            throw ParseError("Unknown location directive: " + directive, current_token_);
         }
     } else {
         if (directive == "listen") {
-            valueToken = current_token_;  // Store before reading value
-            uint64_t port = expectNumber("Expected port number");
+            uint64_t port = readNumber("Expected port number");
             if (port > 65535) {
                 throw ParseError("Port number out of range", valueToken);
             }
             builder.setPort(static_cast<uint16_t>(port));
+            expectSemicolon();
         } else if (directive == "server_name") {
-            valueToken = current_token_;  // Store before reading value
-            std::string name = expectIdentifier("Expected server name");
-            builder.setServerName(name);
+            handleDirective(directive, builder,
+                [](ConfigBuilder& b, const std::string& value) { b.setServerName(value); });
         } else if (directive == "root") {
-            valueToken = current_token_;  // Store before reading value
-            std::string root = expectIdentifier("Expected root path");
-            builder.setRoot(root);
+            handleDirective(directive, builder,
+                [](ConfigBuilder& b, const std::string& value) { b.setRoot(value); });
         } else if (directive == "index") {
-            valueToken = current_token_;  // Store before reading value
-            auto index_files = expectIdentifierList("Expected index filename");
-            if (!index_files.empty()) {
-                builder.setIndex(index_files[0]);
+            auto files = readValueList("Expected index filename");
+            if (!files.empty()) {
+                builder.setIndex(files[0]);
             }
+            expectSemicolon();
         } else if (directive == "client_max_body_size") {
-            valueToken = current_token_;  // Store before reading value
-            uint64_t size = expectNumber("Expected body size");
+            uint64_t size = readNumber("Expected body size");
             builder.setClientMaxBodySize(size);
+            expectSemicolon();
         } else if (directive == "error_page") {
-            valueToken = current_token_;  // Store before reading value
-            uint64_t code = expectNumber("Expected error code");
+            uint64_t code = readNumber("Expected error code");
             if (code < 400 || code > 599) {
                 throw ParseError("Invalid error code", valueToken);
             }
-            valueToken = current_token_;  // Store before reading error page
-            std::string page = expectIdentifier("Expected error page path");
+            std::string page = readValue("Expected error page path");
             builder.addErrorPage(static_cast<uint16_t>(code), page);
+            expectSemicolon();
         } else {
-            throw ParseError("Unknown server directive: " + directive, valueToken);
+            throw ParseError("Unknown server directive: " + directive, current_token_);
         }
-    }
-
-    // Use the end position of the last value token when reporting missing semicolon
-    if (!match(TokenType::SEMICOLON)) {
-        throw ParseError("Expected ';' after directive", valueToken, true);
     }
 }

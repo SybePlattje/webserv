@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <istream>
+#include <functional>
 
 // Position in source file
 struct Position {
@@ -75,11 +76,17 @@ private:
     std::string error_;        // Last error message
     char current_char_;        // Current character
 
-    // Helper methods
+    // Basic character handling
     void advance();            // Move to next character
     char peek();              // Look at next character
+    Position trackPosition(); // Track position before advancing
+    
+    // Skipping methods
     void skipWhitespace();    // Skip whitespace characters
     void skipComment();       // Skip from # to end of line
+    
+    // Generic token reading
+    Token readWhile(std::function<bool(char)> predicate, TokenType type);  // Read while predicate is true
     
     // Token creation methods
     Token readIdentifier();    // Read word tokens
