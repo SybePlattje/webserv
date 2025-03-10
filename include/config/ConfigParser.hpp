@@ -9,25 +9,23 @@
 
 class ConfigParser {
 public:
-    // Parse exception with line and column information
+    // Parse exception with position information
     class ParseError : public std::runtime_error {
     public:
-        ParseError(const std::string& msg, size_t line, size_t column)
-            : std::runtime_error(formatError(msg, line, column))
-            , line_(line)
-            , column_(column) {}
+        // Create error at token position
+        ParseError(const std::string& msg, const Token& token, bool useEndPosition = false)
+            : std::runtime_error(formatError(msg, useEndPosition ? token.end : token.start))
+            , position_(useEndPosition ? token.end : token.start) {}
 
-        size_t getLine() const { return line_; }
-        size_t getColumn() const { return column_; }
+        // Get error position
+        const Position& getPosition() const { return position_; }
 
     private:
-        static std::string formatError(const std::string& msg, size_t line, size_t column) {
-            return "Line " + std::to_string(line) + ", Column " + 
-                   std::to_string(column) + ": " + msg;
+        static std::string formatError(const std::string& msg, const Position& pos) {
+            return msg + " at " + pos.toString();
         }
 
-        size_t line_;
-        size_t column_;
+        Position position_;  // Where the error occurred
     };
 
     // Parse from input stream
@@ -54,7 +52,8 @@ private:
 
     // Member variables
     ConfigLexer& lexer_;
-    Token current_token_{TokenType::INVALID, "", 0, 0};
+    Token current_token_{TokenType::INVALID, "", Position(), Position()};
+    Token valueToken{TokenType::INVALID, "", Position(), Position()};  // Tracks last value token for error reporting
 };
 
 #endif
