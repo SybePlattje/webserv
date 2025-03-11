@@ -8,7 +8,7 @@ int main(int argc, char* argv[]) {
 	(void) argc;
     try {
         std::unique_ptr<Config> config = ConfigLoader::load(argv[1]);
-        Server server(*config);
+        Server server(config);
         server.setupEpoll();
         // ConfigPrinter::print(std::cout, *config);
         return 0;
