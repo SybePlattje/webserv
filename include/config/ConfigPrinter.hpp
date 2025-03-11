@@ -21,6 +21,7 @@ private:
     static void printLocation(std::ostream& out, const Location& location);
     static void printReturnDirective(std::ostream& out, const Location::ReturnDirective& ret);
     static void printMethods(std::ostream& out, const std::vector<std::string>& methods);
+    static void printCGIConfig(std::ostream& out, const Location::CGIConfig& cgi);
 
     // Constants for formatting
     static constexpr const char* INDENT = "  ";

@@ -29,12 +29,24 @@ public:
     void setLocationAutoindex(bool enabled);
     void setLocationRedirect(unsigned int code, const std::string& url);
     void setLocationResponse(unsigned int code, const std::string& message = "");
+    
+    // CGI configuration methods
+    void setLocationCGIPath(const std::vector<std::string>& interpreters);
+    void setLocationCGIExt(const std::vector<std::string>& extensions);
+    
     void endLocation();
 
     // Build method
     std::unique_ptr<Config> build();
 
 private:
+    // Helper method to ensure location context
+    void ensureLocationContext(const std::string& method) const {
+        if (!current_location_) {
+            throw std::runtime_error(method + " called outside location context");
+        }
+    }
+
     std::unique_ptr<Config> config_;
     std::shared_ptr<Location> current_location_;
 };

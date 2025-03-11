@@ -63,6 +63,10 @@ void ConfigPrinter::printLocation(std::ostream& out, const Location& location) {
     if (location.hasReturn()) {
         printReturnDirective(out, location.getReturn());
     }
+
+    if (location.hasCGI()) {
+        printCGIConfig(out, location.getCGIConfig());
+    }
 }
 
 void ConfigPrinter::printReturnDirective(std::ostream& out, const Location::ReturnDirective& ret) {
@@ -88,4 +92,18 @@ void ConfigPrinter::printMethods(std::ostream& out, const std::vector<std::strin
         }
         out << NEWLINE;
     }
+}
+
+void ConfigPrinter::printCGIConfig(std::ostream& out, const Location::CGIConfig& cgi) {
+    out << INDENT << "CGI Interpreters:";
+    for (const auto& interpreter : cgi.interpreters) {
+        out << " " << interpreter;
+    }
+    out << NEWLINE;
+
+    out << INDENT << "CGI Extensions:";
+    for (const auto& ext : cgi.extensions) {
+        out << " " << ext;
+    }
+    out << NEWLINE;
 }

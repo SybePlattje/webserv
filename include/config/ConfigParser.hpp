@@ -6,28 +6,25 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <functional>
 
 class ConfigParser {
 public:
-    // Parse exception with line and column information
+    // Parse exception with position information
     class ParseError : public std::runtime_error {
     public:
-        ParseError(const std::string& msg, size_t line, size_t column)
-            : std::runtime_error(formatError(msg, line, column))
-            , line_(line)
-            , column_(column) {}
+        ParseError(const std::string& msg, const Token& token, bool useEndPosition = false)
+            : std::runtime_error(formatError(msg, useEndPosition ? token.end : token.start))
+            , position_(useEndPosition ? token.end : token.start) {}
 
-        size_t getLine() const { return line_; }
-        size_t getColumn() const { return column_; }
+        const Position& getPosition() const { return position_; }
 
     private:
-        static std::string formatError(const std::string& msg, size_t line, size_t column) {
-            return "Line " + std::to_string(line) + ", Column " + 
-                   std::to_string(column) + ": " + msg;
+        static std::string formatError(const std::string& msg, const Position& pos) {
+            return msg + " at " + pos.toString();
         }
 
-        size_t line_;
-        size_t column_;
+        Position position_;  // Where the error occurred
     };
 
     // Parse from input stream
@@ -36,14 +33,46 @@ public:
 private:
     ConfigParser(ConfigLexer& lexer) : lexer_(lexer) {}
 
+    // Type definitions for directive handling
+    using DirectiveHandler = std::function<void(ConfigBuilder&, const std::string&)>;
+    using ValueValidator = std::function<void(const Token&)>;
+
     // Main parsing methods
     std::unique_ptr<Config> parseConfig();
     void parseServerBlock(ConfigBuilder& builder);
     void parseLocationBlock(ConfigBuilder& builder);
     void parseDirective(ConfigBuilder& builder, bool in_location);
-    void parseReturn(ConfigBuilder& builder);  // New method for return directive
 
-    // Helper methods
+    // Location directive handlers
+    void parseLocationDirective(ConfigBuilder& builder, const std::string& directive);
+    void parseLocationRoot(ConfigBuilder& builder);
+    void parseLocationIndex(ConfigBuilder& builder);
+    void parseLocationMethods(ConfigBuilder& builder);
+    void parseLocationAutoindex(ConfigBuilder& builder);
+    void parseLocationReturn(ConfigBuilder& builder);
+    void parseLocationCGIPath(ConfigBuilder& builder);
+    void parseLocationCGIExt(ConfigBuilder& builder);
+
+    // Server directive handlers
+    void parseServerDirective(ConfigBuilder& builder, const std::string& directive);
+    void parseServerListen(ConfigBuilder& builder);
+    void parseServerName(ConfigBuilder& builder);
+    void parseServerRoot(ConfigBuilder& builder);
+    void parseServerIndex(ConfigBuilder& builder);
+    void parseServerBodySize(ConfigBuilder& builder);
+    void parseServerErrorPage(ConfigBuilder& builder);
+
+    // Helper methods for directive parsing
+    void handleDirective(const std::string& directive, 
+                        ConfigBuilder& builder,
+                        const DirectiveHandler& handler,
+                        const ValueValidator& validator = nullptr);
+    
+    std::string readValue(const std::string& error_msg);
+    std::vector<std::string> readValueList(const std::string& error_msg);
+    uint64_t readNumber(const std::string& error_msg);
+
+    // Token handling
     Token getCurrentToken() const { return current_token_; }
     void advance();
     bool match(TokenType type);
@@ -51,10 +80,12 @@ private:
     std::string expectIdentifier(const std::string& error_msg);
     std::vector<std::string> expectIdentifierList(const std::string& error_msg);
     uint64_t expectNumber(const std::string& error_msg);
+    void expectSemicolon();
 
     // Member variables
     ConfigLexer& lexer_;
-    Token current_token_{TokenType::INVALID, "", 0, 0};
+    Token current_token_{TokenType::INVALID, "", Position(), Position()};
+    Token valueToken{TokenType::INVALID, "", Position(), Position()};  // Tracks last value token
 };
 
 #endif

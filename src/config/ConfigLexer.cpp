@@ -3,10 +3,11 @@
 
 void ConfigLexer::advance() {
     if (input_.get(current_char_)) {
-        column_++;
         if (current_char_ == '\n') {
-            line_++;
-            column_ = 0;
+            current_pos_.line++;
+            current_pos_.column = 0;
+        } else {
+            current_pos_.column++;
         }
     } else {
         current_char_ = '\0';  // End of file
@@ -32,101 +33,99 @@ void ConfigLexer::skipComment() {
     }
 }
 
-Token ConfigLexer::readIdentifier() {
-    std::string identifier;
-    const size_t start_column = column_;
+Position ConfigLexer::trackPosition() {
+    Position pos = current_pos_;
+    advance();
+    return pos;
+}
 
-    // Allow alphanumeric characters, underscore, hyphen, forward slash, and dot
-    while (std::isalnum(current_char_) || current_char_ == '_' || 
-           current_char_ == '-' || current_char_ == '/' || current_char_ == '.') {
-        identifier += current_char_;
+Token ConfigLexer::readWhile(std::function<bool(char)> predicate, TokenType type) {
+    std::string content;
+    Position start = current_pos_;
+    Position end = start;
+
+    while (predicate(current_char_)) {
+        content += current_char_;
+        end = current_pos_;
         advance();
     }
 
-    return Token(TokenType::IDENTIFIER, identifier, line_, start_column);
+    return Token(type, content, start, end);
+}
+
+Token ConfigLexer::readIdentifier() {
+    auto isValidIdentChar = [](char c) {
+        return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-' || c == '/' || c == '.';
+    };
+    return readWhile(isValidIdentChar, TokenType::IDENTIFIER);
 }
 
 Token ConfigLexer::readNumber() {
-    std::string number;
-    const size_t start_column = column_;
-
-    while (std::isdigit(current_char_)) {
-        number += current_char_;
-        advance();
-    }
-
-    return Token(TokenType::NUMBER, number, line_, start_column);
+    auto isDigit = [](char c) { return std::isdigit(static_cast<unsigned char>(c)) != 0; };
+    return readWhile(isDigit, TokenType::NUMBER);
 }
 
 Token ConfigLexer::readString() {
     std::string str;
-    const size_t start_column = column_;
+    Position start = current_pos_;
     advance(); // Skip opening quote
 
+    Position end = start;
     while (current_char_ != '"' && current_char_ != '\0') {
         if (current_char_ == '\n') {
-            return Token(TokenType::INVALID, "Unterminated string literal", line_, start_column);
+            return Token(TokenType::INVALID, "Unterminated string literal", start, current_pos_);
         }
         str += current_char_;
+        end = current_pos_;
         advance();
     }
 
     if (current_char_ == '"') {
+        end = current_pos_;
         advance(); // Skip closing quote
-        return Token(TokenType::STRING, str, line_, start_column);
+        return Token(TokenType::STRING, str, start, end);
     }
 
-    return Token(TokenType::INVALID, "Unterminated string literal", line_, start_column);
+    return Token(TokenType::INVALID, "Unterminated string literal", start, end);
 }
 
-Token ConfigLexer::makeToken(TokenType type, const std::string& value) {
-    return Token(type, value, line_, column_ - value.length());
+Token ConfigLexer::makeToken(TokenType type, const std::string& value, const Position& start) {
+    return Token(type, value, start, current_pos_);
 }
 
 Token ConfigLexer::makeError(const std::string& message) {
     error_ = message;
-    return Token(TokenType::INVALID, message, line_, column_);
+    return Token(TokenType::INVALID, message, current_pos_, current_pos_);
 }
 
 Token ConfigLexer::nextToken() {
     skipWhitespace();
 
     if (current_char_ == '\0') {
-        return makeToken(TokenType::END_OF_FILE, "");
+        return makeToken(TokenType::END_OF_FILE, "", current_pos_);
     }
 
-    // Handle comments
     if (current_char_ == '#') {
         skipComment();
         return nextToken();
     }
 
-    // Handle special characters
+    Position start = current_pos_;
     switch (current_char_) {
-        case '{':
-            advance();
-            return makeToken(TokenType::LBRACE, "{");
-        case '}':
-            advance();
-            return makeToken(TokenType::RBRACE, "}");
-        case ';':
-            advance();
-            return makeToken(TokenType::SEMICOLON, ";");
-        case '"':
-            return readString();
+        case '{': advance(); return makeToken(TokenType::LBRACE, "{", start);
+        case '}': advance(); return makeToken(TokenType::RBRACE, "}", start);
+        case ';': advance(); return makeToken(TokenType::SEMICOLON, ";", start);
+        case '"': return readString();
     }
 
-    // Handle numbers
-    if (std::isdigit(current_char_)) {
+    if (std::isdigit(static_cast<unsigned char>(current_char_))) {
         return readNumber();
     }
 
-    // Handle identifiers (allow starting with letter, underscore, or forward slash)
-    if (std::isalpha(current_char_) || current_char_ == '_' || current_char_ == '/') {
+    if (std::isalpha(static_cast<unsigned char>(current_char_)) || current_char_ == '_' || current_char_ == '/') {
         return readIdentifier();
     }
 
-    // Invalid character
     std::string invalid(1, current_char_);
     advance();
     return makeError("Invalid character: " + invalid);
