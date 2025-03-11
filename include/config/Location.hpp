@@ -34,6 +34,15 @@ public:
         }
     };
 
+    struct CGIConfig {
+        std::vector<std::string> interpreters;  // Paths to CGI interpreters (e.g., python3, bash)
+        std::vector<std::string> extensions;    // File extensions to handle as CGI (e.g., .py, .sh)
+
+        bool isEnabled() const {
+            return !interpreters.empty() && !extensions.empty();
+        }
+    };
+
     Location(const std::string& path);
     ~Location() = default;
 
@@ -50,11 +59,16 @@ public:
     const std::vector<std::string>& getAllowedMethods() const;
     bool getAutoindex() const;
     const ReturnDirective& getReturn() const;
+    const CGIConfig& getCGIConfig() const;
 
     // Return directive helper methods
     bool hasReturn() const;
     bool hasRedirect() const;
     bool hasResponse() const;
+
+    // CGI helper methods
+    bool hasCGI() const;
+    bool isCGIExtension(const std::string& ext) const;
 
 private:
     friend class ConfigBuilder; // Only builder can modify location
@@ -65,6 +79,7 @@ private:
     std::vector<std::string> allowed_methods_ = {"GET"};  // Default: GET only
     bool autoindex_ = false;  // Default: autoindex off
     ReturnDirective return_directive_;
+    CGIConfig cgi_config_;
 
     // Helper method to check if a status code is valid for redirects
     static bool isValidRedirectCode(unsigned int code) {

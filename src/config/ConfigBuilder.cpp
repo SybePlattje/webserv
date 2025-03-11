@@ -37,37 +37,27 @@ void ConfigBuilder::startLocation(const std::string& path) {
 }
 
 void ConfigBuilder::setLocationRoot(const std::string& root) {
-    if (!current_location_) {
-        throw std::runtime_error("No active location block");
-    }
+    ensureLocationContext("setLocationRoot");
     current_location_->root_ = root;
 }
 
 void ConfigBuilder::setLocationIndex(const std::string& index) {
-    if (!current_location_) {
-        throw std::runtime_error("No active location block");
-    }
+    ensureLocationContext("setLocationIndex");
     current_location_->index_ = index;
 }
 
 void ConfigBuilder::setLocationMethods(const std::vector<std::string>& methods) {
-    if (!current_location_) {
-        throw std::runtime_error("No active location block");
-    }
+    ensureLocationContext("setLocationMethods");
     current_location_->allowed_methods_ = methods;
 }
 
 void ConfigBuilder::setLocationAutoindex(bool enabled) {
-    if (!current_location_) {
-        throw std::runtime_error("No active location block");
-    }
+    ensureLocationContext("setLocationAutoindex");
     current_location_->autoindex_ = enabled;
 }
 
 void ConfigBuilder::setLocationRedirect(unsigned int code, const std::string& url) {
-    if (!current_location_) {
-        throw std::runtime_error("No active location block");
-    }
+    ensureLocationContext("setLocationRedirect");
     if (!Location::isValidRedirectCode(code)) {
         throw std::runtime_error("Invalid redirect status code: " + std::to_string(code));
     }
@@ -76,14 +66,22 @@ void ConfigBuilder::setLocationRedirect(unsigned int code, const std::string& ur
 }
 
 void ConfigBuilder::setLocationResponse(unsigned int code, const std::string& message) {
-    if (!current_location_) {
-        throw std::runtime_error("No active location block");
-    }
+    ensureLocationContext("setLocationResponse");
     if (!Location::isValidResponseCode(code)) {
         throw std::runtime_error("Invalid response status code: " + std::to_string(code));
     }
     current_location_->return_directive_ = Location::ReturnDirective(
         Location::ReturnType::RESPONSE, code, message);
+}
+
+void ConfigBuilder::setLocationCGIPath(const std::vector<std::string>& interpreters) {
+    ensureLocationContext("setLocationCGIPath");
+    current_location_->cgi_config_.interpreters = interpreters;
+}
+
+void ConfigBuilder::setLocationCGIExt(const std::vector<std::string>& extensions) {
+    ensureLocationContext("setLocationCGIExt");
+    current_location_->cgi_config_.extensions = extensions;
 }
 
 void ConfigBuilder::endLocation() {

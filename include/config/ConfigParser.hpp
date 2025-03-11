@@ -50,6 +50,8 @@ private:
     void parseLocationMethods(ConfigBuilder& builder);
     void parseLocationAutoindex(ConfigBuilder& builder);
     void parseLocationReturn(ConfigBuilder& builder);
+    void parseLocationCGIPath(ConfigBuilder& builder);
+    void parseLocationCGIExt(ConfigBuilder& builder);
 
     // Server directive handlers
     void parseServerDirective(ConfigBuilder& builder, const std::string& directive);
