@@ -5,19 +5,32 @@
 #include <vector>
 #include <optional>
 
+/**
+ * @brief Location block configuration for URL-specific behavior
+ *
+ * Represents a location block in the server configuration, defining
+ * how requests to specific URLs should be handled. This includes
+ * settings for file serving, request methods, CGI processing, and
+ * redirects/responses.
+ */
 class Location {
 public:
-    // Types of return directives
+    /**
+     * @brief Types of return directives for response handling
+     */
     enum class ReturnType {
-        NONE,           // No return directive
-        REDIRECT,       // 301, 302, 303, 307, 308 redirects
-        RESPONSE        // Direct response (200, 400, 403, 404, 405)
+        NONE,     ///< No return directive specified
+        REDIRECT, ///< HTTP redirect (301, 302, 303, 307, 308)
+        RESPONSE  ///< Direct response (200, 400, 403, 404, 405)
     };
 
+    /**
+     * @brief Configuration for return/redirect directives
+     */
     struct ReturnDirective {
-        ReturnType type;
-        unsigned int code;
-        std::string body;     // URL for redirects, message for responses
+        ReturnType type;      ///< Type of return (none/redirect/response)
+        unsigned int code;    ///< HTTP status code
+        std::string body;     ///< URL for redirects, message for responses
 
         ReturnDirective() 
             : type(ReturnType::NONE), code(0) {}
@@ -25,73 +38,142 @@ public:
         ReturnDirective(ReturnType t, unsigned int c, const std::string& b) 
             : type(t), code(c), body(b) {}
 
+        /**
+         * @return true if this is a redirect directive
+         */
         bool isRedirect() const {
             return type == ReturnType::REDIRECT;
         }
 
+        /**
+         * @return true if this is a response directive
+         */
         bool isResponse() const {
             return type == ReturnType::RESPONSE;
         }
     };
 
+    /**
+     * @brief Configuration for CGI processing
+     */
     struct CGIConfig {
-        std::vector<std::string> interpreters;  // Paths to CGI interpreters (e.g., python3, bash)
-        std::vector<std::string> extensions;    // File extensions to handle as CGI (e.g., .py, .sh)
+        std::vector<std::string> interpreters; ///< Paths to CGI interpreters
+        std::vector<std::string> extensions;   ///< File extensions to handle as CGI
 
+        /**
+         * @return true if CGI is enabled (has both interpreters and extensions)
+         */
         bool isEnabled() const {
             return !interpreters.empty() && !extensions.empty();
         }
     };
 
-    Location(const std::string& path);
+    /**
+     * @brief Creates a location block for the specified URL path
+     * @param path URL path this location handles
+     */
+    explicit Location(const std::string& path);
     ~Location() = default;
 
-    // Copy constructor
+    // Copy operations
     Location(const Location& other);
-
-    // Copy assignment operator
     Location& operator=(const Location& other);
 
     // Getters
+    /**
+     * @return URL path this location handles
+     */
     const std::string& getPath() const;
+
+    /**
+     * @return Root directory for this location
+     */
     const std::string& getRoot() const;
+
+    /**
+     * @return Index file for directory requests
+     */
     const std::string& getIndex() const;
+
+    /**
+     * @return List of allowed HTTP methods
+     */
     const std::vector<std::string>& getAllowedMethods() const;
+
+    /**
+     * @return true if directory listing is enabled
+     */
     bool getAutoindex() const;
+
+    /**
+     * @return Return/redirect configuration
+     */
     const ReturnDirective& getReturn() const;
+
+    /**
+     * @return CGI processing configuration
+     */
     const CGIConfig& getCGIConfig() const;
 
-    // Return directive helper methods
+    // Status checks
+    /**
+     * @return true if a return directive is set
+     */
     bool hasReturn() const;
+
+    /**
+     * @return true if this location performs a redirect
+     */
     bool hasRedirect() const;
+
+    /**
+     * @return true if this location sends a direct response
+     */
     bool hasResponse() const;
 
-    // CGI helper methods
+    /**
+     * @return true if CGI processing is enabled
+     */
     bool hasCGI() const;
+
+    /**
+     * @brief Checks if a file extension should be handled as CGI
+     * @param ext File extension to check (including dot)
+     * @return true if the extension should be handled as CGI
+     */
     bool isCGIExtension(const std::string& ext) const;
 
 private:
     friend class ConfigBuilder; // Only builder can modify location
 
-    std::string path_;
-    std::string root_;
-    std::string index_ = "index.html";  // Default index
-    std::vector<std::string> allowed_methods_ = {"GET"};  // Default: GET only
-    bool autoindex_ = false;  // Default: autoindex off
-    ReturnDirective return_directive_;
-    CGIConfig cgi_config_;
+    // Member variables
+    std::string path_;                              ///< URL path this location handles
+    std::string root_;                              ///< Root directory for serving files
+    std::string index_ = "index.html";              ///< Default index file
+    std::vector<std::string> allowed_methods_{"GET"}; ///< Default: GET only
+    bool autoindex_ = false;                        ///< Default: directory listing off
+    ReturnDirective return_directive_;              ///< Return/redirect configuration
+    CGIConfig cgi_config_;                          ///< CGI processing settings
 
-    // Helper method to check if a status code is valid for redirects
+    /**
+     * @brief Validates a redirect status code
+     * @param code HTTP status code
+     * @return true if code is valid for redirects
+     */
     static bool isValidRedirectCode(unsigned int code) {
         return code == 301 || code == 302 || code == 303 || 
                code == 307 || code == 308;
     }
 
-    // Helper method to check if a status code is valid for responses
+    /**
+     * @brief Validates a response status code
+     * @param code HTTP status code
+     * @return true if code is valid for responses
+     */
     static bool isValidResponseCode(unsigned int code) {
         return code == 200 || code == 400 || code == 403 || 
                code == 404 || code == 405;
     }
 };
 
-#endif
+#endif // LOCATION_HPP

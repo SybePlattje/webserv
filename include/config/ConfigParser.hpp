@@ -8,15 +8,36 @@
 #include <vector>
 #include <functional>
 
+/**
+ * @brief Parser for server configuration files
+ *
+ * Parses NGINX-style configuration files into Config objects.
+ * Handles server and location blocks, directives, and their values.
+ * Provides detailed error reporting with line and column information.
+ */
 class ConfigParser {
 public:
-    // Parse exception with position information
+    /**
+     * @brief Exception class for parsing errors
+     *
+     * Provides detailed error information including the position
+     * where the error occurred in the source file.
+     */
     class ParseError : public std::runtime_error {
     public:
+        /**
+         * @brief Creates a parse error with position information
+         * @param msg Error message
+         * @param token Token where the error occurred
+         * @param useEndPosition Whether to use token end (true) or start (false) position
+         */
         ParseError(const std::string& msg, const Token& token, bool useEndPosition = false)
             : std::runtime_error(formatError(msg, useEndPosition ? token.end : token.start))
             , position_(useEndPosition ? token.end : token.start) {}
 
+        /**
+         * @return Position where the error occurred
+         */
         const Position& getPosition() const { return position_; }
 
     private:
@@ -24,13 +45,22 @@ public:
             return msg + " at " + pos.toString();
         }
 
-        Position position_;  // Where the error occurred
+        Position position_;  ///< Error location in source
     };
 
-    // Parse from input stream
+    /**
+     * @brief Parses configuration from an input stream
+     * @param input Stream containing configuration data
+     * @return Unique pointer to parsed Config object
+     * @throws ParseError on syntax or semantic errors
+     */
     static std::unique_ptr<Config> parse(std::istream& input);
 
 private:
+    /**
+     * @brief Creates parser with associated lexer
+     * @param lexer Lexer for tokenizing input
+     */
     ConfigParser(ConfigLexer& lexer) : lexer_(lexer) {}
 
     // Type definitions for directive handling
@@ -39,8 +69,27 @@ private:
 
     // Main parsing methods
     std::unique_ptr<Config> parseConfig();
+
+    /**
+     * @brief Parses a server block
+     * @param builder Configuration builder to store settings
+     * @throws ParseError on invalid server block syntax
+     */
     void parseServerBlock(ConfigBuilder& builder);
+
+    /**
+     * @brief Parses a location block
+     * @param builder Configuration builder to store settings
+     * @throws ParseError on invalid location block syntax
+     */
     void parseLocationBlock(ConfigBuilder& builder);
+
+    /**
+     * @brief Parses a configuration directive
+     * @param builder Configuration builder to store settings
+     * @param in_location True if parsing inside a location block
+     * @throws ParseError on invalid directive syntax
+     */
     void parseDirective(ConfigBuilder& builder, bool in_location);
 
     // Location directive handlers
@@ -62,14 +111,42 @@ private:
     void parseServerBodySize(ConfigBuilder& builder);
     void parseServerErrorPage(ConfigBuilder& builder);
 
-    // Helper methods for directive parsing
+    /**
+     * @brief Generic directive handler with validation
+     * @param directive Name of the directive being parsed
+     * @param builder Configuration builder to store settings
+     * @param handler Function to process the directive value
+     * @param validator Optional function to validate the value
+     * @throws ParseError on invalid directive syntax or value
+     */
     void handleDirective(const std::string& directive, 
                         ConfigBuilder& builder,
                         const DirectiveHandler& handler,
                         const ValueValidator& validator = nullptr);
     
+    // Value reading utilities
+    /**
+     * @brief Reads a single directive value
+     * @param error_msg Error message if value is missing
+     * @return The directive value
+     * @throws ParseError if value is missing or invalid
+     */
     std::string readValue(const std::string& error_msg);
+
+    /**
+     * @brief Reads a list of directive values
+     * @param error_msg Error message if list is empty
+     * @return Vector of values
+     * @throws ParseError if list is empty or invalid
+     */
     std::vector<std::string> readValueList(const std::string& error_msg);
+
+    /**
+     * @brief Reads a numeric directive value
+     * @param error_msg Error message if value is missing
+     * @return The numeric value
+     * @throws ParseError if value is missing or not a number
+     */
     uint64_t readNumber(const std::string& error_msg);
 
     // Token handling
@@ -83,9 +160,9 @@ private:
     void expectSemicolon();
 
     // Member variables
-    ConfigLexer& lexer_;
+    ConfigLexer& lexer_;  ///< Lexer providing tokens
     Token current_token_{TokenType::INVALID, "", Position(), Position()};
-    Token valueToken{TokenType::INVALID, "", Position(), Position()};  // Tracks last value token
+    Token valueToken{TokenType::INVALID, "", Position(), Position()};  ///< Last value token
 };
 
 #endif
