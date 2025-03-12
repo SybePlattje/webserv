@@ -37,7 +37,7 @@
 *.a
 *.o
 *.dSYM
-test*
+tests*
 *.idea
 *cmake-build-debug
 webserv
