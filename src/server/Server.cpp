@@ -5,6 +5,7 @@
 #include <sys/epoll.h>
 #include <errno.h>
 #include <iostream>
+#include <unistd.h>
 
 Server::Server(std::unique_ptr<Config>& config) : validator_(), requestHandler_(config->getClientMaxBodySize()), responseHandler_(config.get()->getLocations(), config.get()->getRoot(), config.get()->getErrorPages()), config_(std::move(config))
 {
@@ -333,9 +334,11 @@ int Server::checkEvents(epoll_event event)
                 responseHandler_.handleCoutErrOutput(fd);
                 return 0;
             }
+            responseHandler_.setupResponse(fd, "400 Bad Request", 400, requestHandler_.getRequest(fd));
+            requestHandler_.removeNoteFromRequest(fd);
             return -2;
         }
-        function_response = requestHandler_.handleClient(fd, request_buffer);
+        function_response = requestHandler_.handleClient(request_buffer, event);
         if (function_response == MODIFY_CLIENT_WRITE)
         {
             if (doEpollCtl(EPOLL_CTL_MOD, fd, &event) != 0)
@@ -344,7 +347,7 @@ int Server::checkEvents(epoll_event event)
                 doEpollCtl(EPOLL_CTL_DEL, fd, &event);
                 return -1;
             }
-            requestHandler_.removeNoteFromRequest(fd);
+            // requestHandler_.removeNoteFromRequest(fd);
             return 0;
         }
         return -2;
@@ -354,6 +357,7 @@ int Server::checkEvents(epoll_event event)
         e_server_request_return nr = responseHandler_.handleResponse(fd, requestHandler_.getRequest(fd), config_->getLocations());
         doEpollCtl(EPOLL_CTL_DEL, fd, &event);
         close(fd);
+        requestHandler_.removeNoteFromRequest(fd);
         if (nr != SRH_OK)
             return -2;
     }

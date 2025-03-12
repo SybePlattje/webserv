@@ -70,10 +70,11 @@ e_responeValReturn ServerResponseValidator::checkLocations(std::vector<std::stri
         if (found_location.at(most_precise) == full_request || found_location.at(most_precise).find(".") != std::string::npos)
         {
             location_it = std::next(locations_.begin(), most_precise);
+            std::string start = root_;
             if (location_it->get()->getPath() == "/")
-               file_path = "/";
+               file_path = root_ + "/" + location_it->get()->getIndex();
             else
-                file_path = root_ + location_it->get()->getIndex();
+                file_path = root_ + location_it->get()->getRoot() + "/" + location_it->get()->getIndex();
         }
     }
     if (file_path.empty())
@@ -123,11 +124,19 @@ e_responeValReturn ServerResponseValidator::checkAllowedMethods(std::vector<std:
  */
 e_responeValReturn ServerResponseValidator::checkFile(std::string& file_path, std::vector<std::shared_ptr<Location>>::const_iterator& location_it)
 {
+    bool erased = false;
+    if (!file_path.empty() && file_path.front() == '/')
+    {
+        erased = true;
+        file_path.erase(0, 1);
+    }
     if (fileExists(file_path))
     {
         if (filePermission(file_path))
         {
             std::cout << "file_path: " << file_path << std::endl;
+            if (erased)
+                file_path.insert(0, "/");
             return RVR_OK;
         }
         else
@@ -140,6 +149,8 @@ e_responeValReturn ServerResponseValidator::checkFile(std::string& file_path, st
         if (filePermission(root_ + location_it->get()->getIndex()))
         {
             file_path = root_ + location_it->get()->getIndex();
+            if (erased)
+                file_path.insert(0, "/");
             return RVR_FOUND_AT_ROOT;
         }
         else
@@ -147,6 +158,8 @@ e_responeValReturn ServerResponseValidator::checkFile(std::string& file_path, st
     }
     else
     {
+        if (erased)
+            file_path.insert(0, "/");
         std::cerr << "file_path: \"" << file_path << "\" not found\n";
         return RVR_NOT_FOUND;
     }

@@ -1,7 +1,6 @@
 #include "server/ServerRequestHandler.hpp"
 #include <functional>
 #include <stdexcept>
-#include <sys/epoll.h>
 #include <iostream>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -81,11 +80,9 @@ e_reponses ServerRequestHandler::readRequest(int client_fd, std::string& request
  * @return MODIFY_CLIENT_WRITE when everything is good and we are ready to change the event to a write event in epoll.
  * @return HANDLE_CLIENT_EMPTY request_buffer is empty error
  */
-e_reponses ServerRequestHandler::handleClient(int client_fd, std::string request_buffer)
+e_reponses ServerRequestHandler::handleClient(std::string request_buffer, epoll_event& event)
 {
-    epoll_event event{};
     event.events = EPOLLOUT;
-    event.data.fd = client_fd;
     if (!request_buffer.empty())
         return MODIFY_CLIENT_WRITE;
     else
@@ -112,15 +109,15 @@ e_reponses ServerRequestHandler::handleClient(int client_fd, std::string request
 e_reponses ServerRequestHandler::readHeader(std::string& request_buffer, size_t header_end, int client_fd, char buffer[])
 {
     std::cout << request_buffer << std::endl;
+
+    if (setMethodSourceHttpVersion(request_buffer, client_fd) == CLIENT_REQUEST_DATA_EMPTY)
+        return CLIENT_REQUEST_DATA_EMPTY;
+
     if (setContentTypeRequest(request_buffer, header_end, client_fd) == NO_CONTENT_TYPE)
         return NO_CONTENT_TYPE;
 
-    if (setMethodSourceHttpVersion(request_buffer, client_fd) == CLIENT_REQUEST_DATA_EMPTY)
-        return CLIENT_REQUEST_DATA_EMPTY;;
-
     std::string headers = request_buffer.substr(0, header_end);
-    s_client_data client_request = getRequest(client_fd);
-    client_request.request_header = headers;
+    getRequest(client_fd).request_header = headers;
     size_t body_start = header_end + 4; // Skip \r\n\r\n
 
     // check if it's chunked transfer encoding
@@ -151,13 +148,14 @@ e_reponses ServerRequestHandler::readHeader(std::string& request_buffer, size_t 
  */
 e_reponses ServerRequestHandler::setContentTypeRequest(std::string& request_buffer, size_t header_end, int client_fd)
 {
+    if (request_.at(client_fd).request_method == "GET")
+        return E_ROK;
     size_t request_type_pos = request_buffer.find("Content-Type: ");
     if (request_type_pos != std::string::npos)
     {
         request_type_pos += 14; // skip past "Content-Type: "
         size_t end = request_buffer.substr(request_type_pos, header_end - request_type_pos).length();
-        s_client_data client_request = getRequest(client_fd);
-        client_request.request_type = request_buffer.substr(request_type_pos, end);
+        getRequest(client_fd).request_type = request_buffer.substr(request_type_pos, end);
         return E_ROK;
     }
     return NO_CONTENT_TYPE;
@@ -173,8 +171,7 @@ e_reponses ServerRequestHandler::setContentTypeRequest(std::string& request_buff
 e_reponses ServerRequestHandler::setMethodSourceHttpVersion(std::string& request_buffer, int client_fd)
 {
     std::istringstream stream(request_buffer);
-    s_client_data client_request = getRequest(client_fd);
-    stream >> client_request.request_method >> client_request.request_source >> client_request.http_version;
+    stream >> getRequest(client_fd).request_method >> getRequest(client_fd).request_source >> getRequest(client_fd).http_version;
     return E_ROK;
 }
 
@@ -219,9 +216,8 @@ e_reponses ServerRequestHandler::handleChunkedRequest(size_t body_start, std::st
         decoded_body.append(chunk_data);
         pos += chunk_size + 2; // move past \r\n
     }
-    s_client_data client_request = getRequest(client_fd);
-    client_request.request_body = decoded_body;
-    client_request.chunked = true;
+    getRequest(client_fd).request_body = decoded_body;
+    getRequest(client_fd).chunked = true;
     return E_ROK;
 }
 
@@ -272,7 +268,6 @@ e_reponses ServerRequestHandler::handleContentLenght(size_t size, std::string& r
         if (recv_return == 0) break;
         if (recv_return == -1) return RECV_FAILED;
     }
-    s_client_data client_request = getRequest(client_fd);
-    client_request.request_body = request_buffer.substr(body_start, size);
+    getRequest(client_fd).request_body = request_buffer.substr(body_start, size);
     return E_ROK;
 }

@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <cstring>
 #include <fcntl.h>
+#include <unistd.h>
 
 ServerResponseHandler::ServerResponseHandler(const std::vector<std::shared_ptr<Location>>& locations, const std::string& root, const std::map<uint16_t, std::string>& error_map) : SRV_(locations, root), error_pages_(error_map)
 {
@@ -74,7 +75,7 @@ e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_c
         else
             return handleReturns(client_fd, nr, client_data);
     }
-    return setupResponse(client_fd, "200 OK", 200, client_data);
+    return setupResponse(client_fd, "200 OK", 200, client_data, file_path);
 }
 
 /**
@@ -109,7 +110,7 @@ e_server_request_return ServerResponseHandler::setupResponse(int client_fd, std:
         else
         {
             location.insert(0UL, SRV_.getRoot());
-            sendResponse(client_fd, status_text, location + error_page->second, data);
+            sendResponse(client_fd, status_text, location + "/" + error_page->second, data);
         }
     }
     return SRH_OK;
@@ -237,7 +238,7 @@ e_server_request_return ServerResponseHandler::sendResponse(int client_fd, const
     }
 
     response << "Content-Type: " << getContentType(file_location) << "\r\n";
-    std::ifstream file_stream(file_location, std::ios::binary);
+    std::ifstream file_stream("." + file_location, std::ios::binary);
     if (!file_stream.is_open())
     {
         std::cerr << "file_stream open: " << file_location << std::endl;
