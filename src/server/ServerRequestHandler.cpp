@@ -22,7 +22,7 @@ s_client_data& ServerRequestHandler::getRequest(int fd)
     return request_[fd];
 }
 
-void ServerRequestHandler::removeNoteFromRequest(int fd)
+void ServerRequestHandler::removeNodeFromRequest(int fd)
 {
     request_.erase(fd);
 }
@@ -123,16 +123,16 @@ e_reponses ServerRequestHandler::readHeader(std::string& request_buffer, size_t 
     // check if it's chunked transfer encoding
     if (headers.find("Transfer-Encoding: chunked") != std::string::npos || headers.find("TE: chunked") != std::string::npos)
         return handleChunkedRequest(body_start, request_buffer, client_fd, buffer);
-    size_t content_lentght_body = headers.find("Content-Length: ");
-    if (content_lentght_body != std::string::npos)
+    size_t content_length_body = headers.find("Content-Length: ");
+    if (content_length_body != std::string::npos)
     {
-        size_t start = content_lentght_body + 16;
+        size_t start = content_length_body + 16;
         std::stringstream stream(headers.substr(start));
         uint64_t size;
         stream >> size;
         if (size > max_size_)
             return READ_HEADER_BODY_TOO_LARGE;
-        return handleContentLenght(size, request_buffer, body_start, client_fd, buffer);
+        return handleContentLength(size, request_buffer, body_start, client_fd, buffer);
     }
     return E_ROK;
 }
@@ -260,7 +260,7 @@ int ServerRequestHandler::useRecv(int client_fd, char buffer[], std::string& req
  * @return E_ROK when done,
  * @return RECV_FAILED if useRecv() failed 
  */
-e_reponses ServerRequestHandler::handleContentLenght(size_t size, std::string& request_buffer, size_t body_start, int client_fd, char buffer[])
+e_reponses ServerRequestHandler::handleContentLength(size_t size, std::string& request_buffer, size_t body_start, int client_fd, char buffer[])
 {
     while (request_buffer.size() < body_start + size)
     {

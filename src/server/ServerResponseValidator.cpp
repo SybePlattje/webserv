@@ -37,7 +37,7 @@ e_responeValReturn ServerResponseValidator::checkLocations(std::vector<std::stri
 {
     std::map<size_t, std::string> found_location;
     size_t token_size = token_location.size();
-    setPosibleLocation(token_size, token_location, found_location);
+    setPossibleLocation(token_size, token_location, found_location);
 
     if (!found_location.empty())
     {
@@ -228,7 +228,7 @@ const std::string& ServerResponseValidator::getRoot() const
  * @param token_location the chunked sourse from the client request
  * @param found_location will hold the location that have matches to the chunked source
  */
-void ServerResponseValidator::setPosibleLocation(size_t token_size, std::vector<std::string>& token_location, std::map<size_t, std::string>& found_location)
+void ServerResponseValidator::setPossibleLocation(size_t token_size, std::vector<std::string>& token_location, std::map<size_t, std::string>& found_location)
 {
     size_t location_size = locations_.size();
     if (token_size > 0 && token_location.at(token_size - 1).find(".") != std::string::npos)

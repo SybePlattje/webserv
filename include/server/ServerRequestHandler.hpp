@@ -38,7 +38,7 @@ class ServerRequestHandler
         ServerRequestHandler(uint64_t client_body_size);
         ~ServerRequestHandler();
         s_client_data& getRequest(int fd);
-        void removeNoteFromRequest(int fd);
+        void removeNodeFromRequest(int fd);
         e_reponses readRequest(int client_fd, std::string& request_buffer);
         e_reponses handleClient(std::string request_buffer, epoll_event& event);
         void setStdoutPipe(int out_pipe[]);
@@ -54,7 +54,7 @@ class ServerRequestHandler
         e_reponses setMethodSourceHttpVersion(std::string& request_buffer, int client_fd);
         e_reponses handleChunkedRequest(size_t body_start, std::string& request_buffer, int client_fd, char buffer[]);
         int useRecv(int client_fd, char buffer[], std::string& request_buffer);
-        e_reponses handleContentLenght(size_t size, std::string& request_buffer, size_t body_start, int client_fd, char buffer[]);
+        e_reponses handleContentLength(size_t size, std::string& request_buffer, size_t body_start, int client_fd, char buffer[]);
 };
 
 #endif

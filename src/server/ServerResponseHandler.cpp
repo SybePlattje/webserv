@@ -132,7 +132,7 @@ void ServerResponseHandler::handleCoutErrOutput(int fd)
         request_buffer.append(buffer, bytes_recieved);
     }
     if (fd == stdout_pipe_[0])
-        request_buffer.insert(0, "[Captured stdcout: ]");
+        request_buffer.insert(0, "[Captured stdcout]: ");
     else
         request_buffer.insert(0, "[Captured stdcerr]: ");
     logMsg(request_buffer.c_str(), fd);

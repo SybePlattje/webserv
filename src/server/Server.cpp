@@ -326,7 +326,7 @@ int Server::checkEvents(epoll_event event)
             if (function_response == READ_HEADER_BODY_TOO_LARGE)
             {
                 int return_value = responseHandler_.setupResponse(fd, "413 Length Too Large", 413, requestHandler_.getRequest(fd));
-                requestHandler_.removeNoteFromRequest(fd);
+                requestHandler_.removeNodeFromRequest(fd);
                 return return_value;
             }
             else if (function_response == HANDLE_COUT_CERR_OUTPUT)
@@ -335,7 +335,7 @@ int Server::checkEvents(epoll_event event)
                 return 0;
             }
             responseHandler_.setupResponse(fd, "400 Bad Request", 400, requestHandler_.getRequest(fd));
-            requestHandler_.removeNoteFromRequest(fd);
+            requestHandler_.removeNodeFromRequest(fd);
             return -2;
         }
         function_response = requestHandler_.handleClient(request_buffer, event);
@@ -343,11 +343,11 @@ int Server::checkEvents(epoll_event event)
         {
             if (doEpollCtl(EPOLL_CTL_MOD, fd, &event) != 0)
             {
-                requestHandler_.removeNoteFromRequest(fd);
+                requestHandler_.removeNodeFromRequest(fd);
                 doEpollCtl(EPOLL_CTL_DEL, fd, &event);
                 return -1;
             }
-            // requestHandler_.removeNoteFromRequest(fd);
+            // requestHandler_.removeNodeFromRequest(fd);
             return 0;
         }
         return -2;
@@ -357,7 +357,7 @@ int Server::checkEvents(epoll_event event)
         e_server_request_return nr = responseHandler_.handleResponse(fd, requestHandler_.getRequest(fd), config_->getLocations());
         doEpollCtl(EPOLL_CTL_DEL, fd, &event);
         close(fd);
-        requestHandler_.removeNoteFromRequest(fd);
+        requestHandler_.removeNodeFromRequest(fd);
         if (nr != SRH_OK)
             return -2;
     }
