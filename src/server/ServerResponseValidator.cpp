@@ -55,8 +55,10 @@ e_responeValReturn ServerResponseValidator::checkLocations(std::vector<std::stri
         {
             try
             {
-                if (found_location.at(i).compare("return"))
-                    return RVR_RETURN;
+                auto it = found_location.find(i);
+                if (it != found_location.end())
+                    if (found_location.at(i).compare("return"))
+                        return RVR_RETURN;
             }
             catch(const std::exception& e) {
                 std::cerr << e.what() << "\n";
