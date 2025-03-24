@@ -41,3 +41,4 @@ tests*
 *.idea
 *cmake-build-debug
 webserv
+*.log
