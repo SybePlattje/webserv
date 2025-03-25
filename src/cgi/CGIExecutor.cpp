@@ -65,9 +65,9 @@ std::pair<int, std::string> CGIExecutor::execute(
     close(output_pipe_[1]);  // Close write end of output
 
     // Write request body to script if present
-    // if (!request_body.empty()) {
-    //     write(input_pipe_[1], request_body.c_str(), request_body.length());
-    // }
+    if (!request_body.empty()) {
+        write(input_pipe_[1], request_body.c_str(), request_body.length());
+    }
     close(input_pipe_[1]);  // Close after writing
 
     // Read script output
