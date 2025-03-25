@@ -3,6 +3,7 @@
 
 # include "server/ServerRequestHandler.hpp"
 # include "server/ServerResponseValidator.hpp"
+# include "cgi/CGIHandler.hpp"
 # include "../Config.hpp"
 # include <sys/epoll.h>
 # include <vector>
@@ -17,6 +18,7 @@ enum e_server_request_return
     SRH_OPEN_DIR_FAILED,
     SRH_SEND_ERROR,
     SRH_FSTREAM_ERROR,
+    SRH_CGI_ERROR,
 };
 
 class ServerResponseHandler
@@ -41,6 +43,20 @@ class ServerResponseHandler
         e_server_request_return sendFile(int client_fd, std::ifstream& file_stream);
         std::vector<std::string> sourceChunker(std::string& source);
         void logMsg(const char* msg, int fd);
+
+        /**
+         * @brief Handle CGI request processing
+         * @param client_fd Client socket
+         * @param client_data Request data
+         * @param location Location configuration
+         * @param script_path Path to CGI script
+         * @return SRH_OK on success, error code otherwise
+         */
+        e_server_request_return handleCGI(
+            int client_fd,
+            const s_client_data& client_data,
+            const Location& location,
+            const std::string& script_path);
 };
 
 #endif

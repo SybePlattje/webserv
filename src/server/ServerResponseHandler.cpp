@@ -53,6 +53,14 @@ e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_c
     if (nr != RVR_OK)
         return handleReturns(client_fd, nr, client_data);
 
+    // Check for CGI before file handling
+    if (location_it->get()->hasCGI()) {
+        std::string ext = getContentType(file_path);
+        if (location_it->get()->isCGIExtension(ext)) {
+            return handleCGI(client_fd, client_data, *location_it->get(), file_path);
+        }
+    }
+
     nr = SRV_.checkFile(file_path, location_it);
     if (nr != RVR_OK)
     {
@@ -306,6 +314,8 @@ std::string ServerResponseHandler::getContentType(const std::string& file_path)
         return "image/svg+xml";
     if (extension == ".txt")
         return "text/plain";
+    if (extension == ".php")
+        return ".php";
     return "application/octet-stream"; // Default for unknown types
 }
 
@@ -411,4 +421,64 @@ void ServerResponseHandler::logMsg(const char* msg, int fd)
     int file_fd = open(file.c_str(), O_CREAT | O_APPEND | O_WRONLY, S_IRUSR | S_IWUSR);
     write(file_fd, msg, strlen(msg));
     close(file_fd);
+}
+
+/**
+ * @brief Handle CGI request processing
+ *
+ * @param client_fd the file descriptor of the client
+ * @param client_data the data of the client from the request
+ * @param location location info used for CGI configuration
+ * @param script_path path to the CGI script
+ * @return SRH_OK when done,
+ * @return SRH_CGI_ERROR if CGI processing fails
+ */
+e_server_request_return ServerResponseHandler::handleCGI(
+    int client_fd,
+    const s_client_data& client_data,
+    const Location& location,
+    const std::string& script_path)
+{
+    try {
+        CGIHandler handler(location);
+        
+        // Extract query string if present
+        std::string query_string;
+        size_t query_pos = client_data.request_source.find('?');
+        if (query_pos != std::string::npos) {
+            query_string = client_data.request_source.substr(query_pos + 1);
+        }
+
+        // Execute CGI script
+        auto [status_code, response] = handler.handleRequest(
+            script_path,
+            client_data.request_method,
+            client_data.request_body,
+            query_string,
+            "localhost", // Using default since we don't need specific host
+            9999        // Using default port for development
+        );
+
+        if (status_code != 0) {
+            return setupResponse(client_fd, "500 Internal Server Error", 500, client_data);
+        }
+
+        // Format and send response with CGI output
+        std::ostringstream headers;
+        headers << "HTTP/1.1 200 OK\r\n"
+                << "Connection: close\r\n"
+                << "Content-Type: text/html\r\n"
+                << "Content-Length: " << response.length() << "\r\n\r\n"
+                << response;
+
+        if (send(client_fd, headers.str().c_str(), headers.str().length(), 0) < 0) {
+            return SRH_SEND_ERROR;
+        }
+
+        return SRH_OK;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "CGI error: " << e.what() << std::endl;
+        return setupResponse(client_fd, "500 Internal Server Error", 500, client_data);
+    }
 }
