@@ -1,7 +1,7 @@
 <?php
 define("FILE_UPLOAD_LOCATION", "upload/"); // key, value
 define("MAX_FILE_SIZE", 10 * 1024 * 1024); // 10 MB limit
-$raw_data = stream_get_contents(STDIN);
+$raw_data = $argv[1];
 if (empty($raw_data))
 {
     fwrite(STDERR, "No data recieved.\n");

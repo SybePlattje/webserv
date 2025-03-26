@@ -42,11 +42,13 @@ std::pair<int, std::string> CGIExecutor::execute(
             env_array.push_back(str.c_str());
         }
         env_array.push_back(nullptr);
+        std::string new_script_path = script_path.substr(1, script_path.size());
 
         // Prepare arguments
         const char* args[] = {
             interpreter.c_str(),
-            script_path.c_str(),
+            new_script_path.c_str(),
+            request_body.c_str(),
             nullptr
         };
 
@@ -63,9 +65,9 @@ std::pair<int, std::string> CGIExecutor::execute(
     close(output_pipe_[1]);  // Close write end of output
 
     // Write request body to script if present
-    if (!request_body.empty()) {
-        write(input_pipe_[1], request_body.c_str(), request_body.length());
-    }
+    // if (!request_body.empty()) {
+    //     write(input_pipe_[1], request_body.c_str(), request_body.length());
+    // }
     close(input_pipe_[1]);  // Close after writing
 
     // Read script output

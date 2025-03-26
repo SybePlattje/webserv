@@ -110,7 +110,7 @@ e_server_request_return ServerResponseHandler::setupResponse(int client_fd, std:
         std::map<uint16_t, std::string>::const_iterator error_page = error_pages_.find(code);
         if (error_page == error_pages_.end())
         {
-            std::string fall_back = "example/errorPages/";
+            std::string fall_back = "/example/errorPages/";
             fall_back.append(std::to_string(code));
             fall_back.append(".html");
             sendResponse(client_fd, status_text, fall_back, data);

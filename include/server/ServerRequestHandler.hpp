@@ -40,7 +40,7 @@ class ServerRequestHandler
         s_client_data& getRequest(int fd);
         void removeNodeFromRequest(int fd);
         e_reponses readRequest(int client_fd, std::string& request_buffer);
-        e_reponses handleClient(std::string request_buffer, epoll_event& event);
+        e_reponses handleClient(std::string& request_buffer, epoll_event& event);
         void setStdoutPipe(int out_pipe[]);
         void setStderrPipe(int err_pipe[]);
     private:
