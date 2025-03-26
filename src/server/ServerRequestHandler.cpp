@@ -80,7 +80,7 @@ e_reponses ServerRequestHandler::readRequest(int client_fd, std::string& request
  * @return MODIFY_CLIENT_WRITE when everything is good and we are ready to change the event to a write event in epoll.
  * @return HANDLE_CLIENT_EMPTY request_buffer is empty error
  */
-e_reponses ServerRequestHandler::handleClient(std::string request_buffer, epoll_event& event)
+e_reponses ServerRequestHandler::handleClient(std::string& request_buffer, epoll_event& event)
 {
     event.events = EPOLLOUT;
     if (!request_buffer.empty())
