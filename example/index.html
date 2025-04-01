@@ -13,5 +13,21 @@
 			<input type="file" name="file" id="file"><br>
 			<button type="submit">Upload</button>
 		</form>
+        <form action="/timeout" method="post">
+            <input type="hidden" name="hiddenField", id="hiddenField">
+            <button type="submit">Test timeout</button>
+        </form>
+        <form action="/red" method="get" id="redirectForm">
+            <label for="text">from /red to /test</label><br>
+            <button type="submit">Test Redirect</button>
+        </form>
+        </body>
 	</body>
 </html>
+
+<script>
+    document.getElementById("redirectForm").addEventListener("submit", function(event) {
+        event.preventDefault();
+        window.location.href = this.action;
+    });
+</script>

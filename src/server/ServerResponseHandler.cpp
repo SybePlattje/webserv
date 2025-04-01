@@ -14,6 +14,7 @@ ServerResponseHandler::ServerResponseHandler(const std::vector<std::shared_ptr<L
 {
     stdout_pipe_[0] = -1;
     stdout_pipe_[1] = -1;
+    fillStatusCodes();
 }
 
 ServerResponseHandler::~ServerResponseHandler() {};
@@ -47,12 +48,17 @@ e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_c
     std::vector<std::string> token_location = sourceChunker(client_data.request_source);
     e_responeValReturn nr = SRV_.checkLocations(token_location, file_path, location_it);
     if (nr != RVR_OK)
-        return handleReturns(client_fd, nr, client_data);
+        return handleReturns(client_fd, nr, client_data, location_it);
 
     nr = SRV_.checkAllowedMethods(location_it, client_data.request_method);
     if (nr != RVR_OK)
-        return handleReturns(client_fd, nr, client_data);
-
+        return handleReturns(client_fd, nr, client_data, location_it);
+    
+    // TODO remove when done with project is for testing timeout
+    if (location_it->get()->getPath() == "/timeout")
+    {
+        return SRH_DO_TIMEOUT;
+    }
     nr = SRV_.checkFile(file_path, location_it);
     if (nr != RVR_OK)
     {
@@ -62,20 +68,20 @@ e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_c
             if (nr != RVR_SHOW_DIRECTORY)
             {
                 if (nr == RVR_NOT_FOUND)
-                    return setupResponse(client_fd, "404 Not Found", 404, client_data);
+                    return setupResponse(client_fd, 404, client_data);
                 else if (nr == RVR_NO_FILE_PERMISSION)
-                    return setupResponse(client_fd, "403 Forbidden", 403, client_data);
+                    return setupResponse(client_fd, 403, client_data);
             }
             std::string body;
             e_server_request_return response = buildDirectoryResponse(file_path, body);
             if (response != SRH_OK)
-                return handleReturns(client_fd, RVR_DIR_FAILED, client_data);
+                return handleReturns(client_fd, RVR_DIR_FAILED, client_data, location_it);
             return sendResponse(client_fd, "200 Ok", body, client_data, true);
         }
         else
-            return handleReturns(client_fd, nr, client_data);
+            return handleReturns(client_fd, nr, client_data, location_it);
     }
-    return setupResponse(client_fd, "200 OK", 200, client_data, file_path);
+    return setupResponse(client_fd, 200, client_data, file_path);
 }
 
 /**
@@ -84,14 +90,36 @@ e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_c
  * or that a fall back error page is needed
  * 
  * @param client_fd the file descriptor of the client
- * @param status_text the text that the code uses
  * @param code the code we send in the return
  * @param data the request data from the client
  * @param location the location where the page is located (can be empty)
  * @return SRH_OK when done
  */
-e_server_request_return ServerResponseHandler::setupResponse(int client_fd, std::string status_text, uint32_t code, s_client_data data, std::string location)
+e_server_request_return ServerResponseHandler::setupResponse(int client_fd, uint16_t code, s_client_data data, std::string location)
 {
+    size_t dot_pos = 0;
+    // handle redirects
+    if (!location.empty())
+    {
+        dot_pos = location.find(".", 0);
+        if (dot_pos == std::string::npos)
+            sendRedirectResponse(client_fd, code, location);
+    }
+    std::string status_text;
+    if (status_codes_.find(code) != status_codes_.end())
+    {
+        try
+        {
+            status_text = status_codes_.at(code);
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << e.what() << '\n';
+            status_text = "500 Internal Server Error";
+        }
+    }
+    else
+        status_text = "500 Internal Server Error";
     if (code == 200)
     {
         sendResponse(client_fd, status_text, location, data);
@@ -102,7 +130,7 @@ e_server_request_return ServerResponseHandler::setupResponse(int client_fd, std:
         std::map<uint16_t, std::string>::const_iterator error_page = error_pages_.find(code);
         if (error_page == error_pages_.end())
         {
-            std::string fall_back = "example/errorPages/";
+            std::string fall_back = "/example/errorPages/";
             fall_back.append(std::to_string(code));
             fall_back.append(".html");
             sendResponse(client_fd, status_text, fall_back, data);
@@ -148,31 +176,32 @@ void ServerResponseHandler::handleCoutErrOutput(int fd)
  * @param data the request data from the user
  * @return SRH_OK when done
  */
-e_server_request_return ServerResponseHandler::handleReturns(int client_fd, e_responeValReturn nr, s_client_data data)
+e_server_request_return ServerResponseHandler::handleReturns(int client_fd, e_responeValReturn nr, s_client_data data, std::vector<std::shared_ptr<Location>>::const_iterator& location_it)
 {
     switch (nr)
     {
         case RVR_RETURN:
-            setupResponse(client_fd, "301 Moved Permanently", 301, data);
+            std::cout << "return body is " << location_it->get()->getReturn().body << " return body is " << location_it->get()->getReturn().body << std::endl;
+            setupResponse(client_fd, location_it->get()->getReturn().code, data, location_it->get()->getReturn().body);
             break;
         case RVR_NOT_FOUND:
-            setupResponse(client_fd, "404 Not Found", 404, data);
+            setupResponse(client_fd, 404, data);
             break;
         case RVR_BUFFER_NOT_EMPTY:
-            setupResponse(client_fd, "500 Internal Server Error", 500, data);
+            setupResponse(client_fd, 500, data);
             break;
         case RVR_METHOD_NOT_ALLOWED:
-            setupResponse(client_fd, "400 Bad Request", 400, data);
+            setupResponse(client_fd, 400, data);
             break;
         case RVR_NO_FILE_PERMISSION:
-            setupResponse(client_fd, "403 Forbidden", 403, data);
+            setupResponse(client_fd, 403, data);
             break;
         case RVR_DIR_FAILED:
-            setupResponse(client_fd, "500 Internal Server Error", 500, data);
+            setupResponse(client_fd, 500, data);
             break;
         default:
             std::cerr << "unkown respone validator error " << nr << '\n';
-            setupResponse(client_fd, "500 Internal Server Error", 500, data);
+            setupResponse(client_fd, 500, data);
             break;
     }
     return SRH_OK;
@@ -257,6 +286,7 @@ e_server_request_return ServerResponseHandler::sendResponse(int client_fd, const
     {
         if (file_stream.good())
         {
+            std::cout << "locations is: " << file_location << std::endl;
             content = true;
             file_stream.seekg(0, std::ios::end);
             std::streamsize file_size = file_stream.tellg();
@@ -404,11 +434,122 @@ void ServerResponseHandler::logMsg(const char* msg, int fd)
         file = STANDARD_ERROR_LOG_FILE;
     if (mkdir("logs", 0777) < 0 && errno != EEXIST)
     {
-        std::cerr << "mkdir() error: " << strerror(errno) << std::endl;
+        std::cerr << "mkdir() failed to make directory\n";
         return;
     }
     file.insert(0,"logs/");
     int file_fd = open(file.c_str(), O_CREAT | O_APPEND | O_WRONLY, S_IRUSR | S_IWUSR);
     write(file_fd, msg, strlen(msg));
     close(file_fd);
+}
+
+/**
+ * @brief handles the response for the client if the location as a redirect/return
+ * 
+ * @param client_fd the file descriptor of the client
+ * @param code the code that redirect/return has defined in its location
+ * @param location where the redirect will go to
+ * @return SRH_OK when response is send,
+ * @return SRH_SEND_ERROR if send function has a error
+ */
+e_server_request_return ServerResponseHandler::sendRedirectResponse(int client_fd, uint16_t code, std::string& location)
+{
+
+    std::string status;
+    if (status_codes_.find(code) != status_codes_.end())
+    {
+        try
+        {
+            status = status_codes_.at(code);
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << e.what() << '\n';
+            status = "500 Internal Server Error";
+        }
+    }
+    else
+        status = "500 Internal Server Error";
+
+    std::ostringstream response;
+    response << "HTTP/1.1 " << status << "\r\n";
+    response << "Connection: close\r\n";
+
+    response << "Content-Type: " << getContentType("x.html") << "\r\n";
+    response << "Location: " << location << "\r\n";
+    response << "Content-Length: 0\r\n\r\n";
+    
+    if (send(client_fd, response.str().c_str(), response.str().size(), 0) < 0)
+        return SRH_SEND_ERROR;
+    return SRH_OK;
+}
+
+/**
+ * @brief fills the status_code map with all statuses and the text
+ * 
+ */
+void ServerResponseHandler::fillStatusCodes()
+{
+    status_codes_ = {
+        {100, "100 Continue"},
+        {101, "101 Processing"},
+        {102, "102 Early Hints"},
+        {200, "200 OK"},
+        {201, "201 Created"},
+        {202, "202 Accepted"},
+        {203, "203 Non-Authoritative Information"},
+        {204, "204 No Content"},
+        {205, "205 Reset Content"},
+        {206, "206 Partial Content"},
+        {207, "207 Multi-Status"},
+        {208, "208 Already Reported"},
+        {226, "226 IM Used"},
+        {300, "300 Multiple Choices"},
+        {301, "301 Moved Permanently"},
+        {302, "302 Found"},
+        {303, "303 See Other"},
+        {304, "304 Not Modified"},
+        {307, "307 Temporary Redirect"},
+        {308, "308 Permanent Redirect"},
+        {400, "400 Bad Request"},
+        {401, "401 Unauthorized"},
+        {402, "402 Payment Required"},
+        {403, "403 Forbidden"},
+        {404, "404 Not Found"},
+        {405, "405 Method Not Allowed"},
+        {406, "406 Not Acceptable"},
+        {407, "407 Proxy Authentication Required"},
+        {408, "408 Request Timeout"},
+        {409, "409 Conflict"},
+        {410, "410 Gone"},
+        {411, "411 Length Required"},
+        {412, "412 Precondition Failed"},
+        {413, "413 Content Too Large"},
+        {414, "414 URI Too Long"},
+        {415, "415 Unsupported Media Type"},
+        {416, "416 Range Not Satisfiable"},
+        {417, "417 Expectation Failed"},
+        {418, "418 I'm a teapot"},
+        {421, "421 Misdirected Request"},
+        {422, "422 Unprocessable Content"},
+        {423, "423 Locked"},
+        {424, "424 Failed Dependency"},
+        {425, "425 Too Early"},
+        {426, "426 Upgrade Required"},
+        {428, "428 Precondition Required"},
+        {429, "429 Too Many Requests"},
+        {431, "431 Request Header Fields Too Large"},
+        {451, "451 Unavailable For Legal Reasons"},
+        {500, "500 Internal Server Error"},
+        {501, "501 Not Implemented"},
+        {502, "502 Bad Gateway"},
+        {503, "503 Service Unavailable"},
+        {504, "504 Gateway Timeout"},
+        {505, "505 HTTP Version Not Supported"},
+        {506, "506 Variant Also Negotiates"},
+        {507, "507 Insufficient Storage"},
+        {508, "508 Loop Detected"},
+        {510, "510 Not Extended"},
+        {511, "511 Network Authentication Required"},
+    };
 }

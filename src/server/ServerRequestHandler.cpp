@@ -243,7 +243,8 @@ int ServerRequestHandler::useRecv(int client_fd, char buffer[], std::string& req
     }
     catch(std::length_error& e)
     {
-        (void)e;
+        std::cerr << "str append error\n";
+        std::cerr << e.what() << "\n";
         return -1;
     }
     return 0;

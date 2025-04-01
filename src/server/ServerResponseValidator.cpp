@@ -35,15 +35,15 @@ bool ServerResponseValidator::checkHTTPVersion(std::string& http_version)
  */
 e_responeValReturn ServerResponseValidator::checkLocations(std::vector<std::string>& token_location, std::string& file_path, std::vector<std::shared_ptr<Location>>::const_iterator& location_it)
 {
-    std::map<size_t, std::string> found_location;
+    std::map<size_t, std::shared_ptr<Location>> found_location;
     size_t token_size = token_location.size();
     setPossibleLocation(token_size, token_location, found_location);
 
     if (!found_location.empty())
     {
         size_t most_precise =  0;
-        std::map<size_t, std::string>::iterator fl_it = found_location.begin();
-        std::map<size_t, std::string>::iterator fl_ite = found_location.end();
+        std::map<size_t, std::shared_ptr<Location>>::iterator fl_it = found_location.begin();
+        std::map<size_t, std::shared_ptr<Location>>::iterator fl_ite = found_location.end();
         while (fl_it != fl_ite)
         {
             if (fl_it->first > most_precise)
@@ -55,12 +55,27 @@ e_responeValReturn ServerResponseValidator::checkLocations(std::vector<std::stri
         {
             try
             {
-                auto it = found_location.find(i);
-                if (it != found_location.end())
-                    if (found_location.at(i).compare("return"))
+                if (found_location.size() == 1)
+                {
+                    if (found_location.begin()->second.get()->getReturn().type != Location::ReturnType::NONE)
+                    {
+                        location_it = std::next(locations_.begin(), found_location.begin()->first);
                         return RVR_RETURN;
+                    }
+                }
+                std::map<size_t, std::shared_ptr<Location>>::iterator it = found_location.find(i);
+                if (it != found_location.end())
+                {
+                    if (found_location.at(i)->getReturn().type != Location::ReturnType::NONE)
+                    {
+                        location_it = std::next(locations_.begin(), i);
+                        std::cout << "location_it is set to" << location_it->get()->getRoot() << std::endl;
+                        return RVR_RETURN;
+                    }
+                }
             }
             catch(const std::exception& e) {
+                std::cerr << "find error\n";
                 std::cerr << e.what() << "\n";
                 }
         }
@@ -71,7 +86,7 @@ e_responeValReturn ServerResponseValidator::checkLocations(std::vector<std::stri
         else
             for (size_t l = 0; l < token_size; ++l)
                 full_request.append("/" + token_location.at(l));
-        if (found_location.at(most_precise) == full_request || found_location.at(most_precise).find(".") != std::string::npos)
+        if (found_location.at(most_precise)->getPath() == full_request || found_location.at(most_precise)->getPath().find(".") != std::string::npos)
         {
             location_it = std::next(locations_.begin(), most_precise);
             std::string start = root_;
@@ -232,16 +247,22 @@ const std::string& ServerResponseValidator::getRoot() const
  * @param token_location the chunked sourse from the client request
  * @param found_location will hold the location that have matches to the chunked source
  */
-void ServerResponseValidator::setPossibleLocation(size_t token_size, std::vector<std::string>& token_location, std::map<size_t, std::string>& found_location)
+void ServerResponseValidator::setPossibleLocation(size_t token_size, std::vector<std::string>& token_location, std::map<size_t, std::shared_ptr<Location>>& found_location)
 {
-    size_t location_size = locations_.size();
     if (token_size > 0 && token_location.at(token_size - 1).find(".") != std::string::npos)
     {
         token_location.insert(token_location.begin(), token_location.at(token_size - 1));
         ++token_size;
     }
     if (token_size == 1 && token_location.at(0) == "/")
-        found_location.insert(std::pair<size_t, std::string>(0, "/"));
+    {
+        for (auto location : locations_)
+        {
+            if (location && location->getPath() == "/")
+                found_location.emplace(0, location);
+        }
+        //found_location.insert(std::pair<size_t, std::string>(0, locations_->at(0)));
+    }
     else
     {
         for (size_t i = 0; i < token_size; ++i)
@@ -250,14 +271,12 @@ void ServerResponseValidator::setPossibleLocation(size_t token_size, std::vector
             std::string loc = "";
             for (size_t j = 0; j < current; ++j)
                 loc.append("/" + token_location.at(j));
-            for (size_t j = 0; j < location_size; ++j)
+            size_t j = 0;
+            for (const std::shared_ptr<Location>& loc_ptr : locations_)
             {
-                try
-                {
-                    if (locations_.at(j).get()->getPath().compare(loc) == 0)
-                        found_location.insert(std::pair<size_t, std::string>(j, locations_.at(j).get()->getPath()));
-                }
-                catch (std::exception& e) {(void)e;}
+                if (loc_ptr && loc_ptr->getPath() == loc)
+                    found_location.emplace(j, loc_ptr);
+                ++j;
             }
         }
     }

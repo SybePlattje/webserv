@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <iostream>
 #include <unistd.h>
+#include <sys/timerfd.h>
 
 Server::Server(std::unique_ptr<Config>& config) : validator_(), requestHandler_(config->getClientMaxBodySize()), responseHandler_(config.get()->getLocations(), config.get()->getRoot(), config.get()->getErrorPages()), config_(std::move(config))
 {
@@ -13,7 +14,10 @@ Server::Server(std::unique_ptr<Config>& config) : validator_(), requestHandler_(
     if (server_name == "localhost")
         server_name = "127.0.0.1";
     if (createServerSocket(server_name, config_->getPort()) != 0)
+    {
+        std::cerr << "create server socket error\n";
         throw std::runtime_error("failed to setup server socket");
+    }
     root_folder_ = config_->getRoot();
     main_index_ = config_->getIndex();
     locations_ = config_->getLocations();
@@ -35,6 +39,7 @@ int Server::setupEpoll()
     epoll_fd_ = epoll_create(MAX_EVENTS);
     if (epoll_fd_ == -1)
     {
+        std::cerr << "epoll_create error\n";
         int nr = validator_.checkErrno(errno);
         close(server_fd_);
         return nr;
@@ -46,42 +51,43 @@ int Server::setupEpoll()
     int nr = doEpollCtl(EPOLL_CTL_ADD, server_fd_, &event);
     if (nr != 0)
     {
+        std::cerr << "adding serverFd failed\n";
         close(epoll_fd_);
         close(server_fd_);
         return nr;
     }
 
-    if (setupPipe() != 0)
-    {
-        close(epoll_fd_);
-        close(server_fd_);
-        return -1;
-    }
-    responseHandler_.setStdoutPipe(stdout_pipe_);
-    requestHandler_.setStdoutPipe(stdout_pipe_);
-    requestHandler_.setStderrPipe(stderr_pipe_);
+    // if (setupPipe() != 0)
+    // {
+    //     close(epoll_fd_);
+    //     close(server_fd_);
+    //     return -1;
+    // }
+    // responseHandler_.setStdoutPipe(stdout_pipe_);
+    // requestHandler_.setStdoutPipe(stdout_pipe_);
+    // requestHandler_.setStderrPipe(stderr_pipe_);
 
-    nr = putCoutCerrInEpoll();
-    if (nr < 0)
-    {
-        close(stdout_pipe_[0]);
-        close(stderr_pipe_[0]);
-        close(epoll_fd_);
-        close(server_fd_);
-        return nr;
-    }
+    // nr = putCoutCerrInEpoll();
+    // if (nr < 0)
+    // {
+    //     close(stdout_pipe_[0]);
+    //     close(stderr_pipe_[0]);
+    //     close(epoll_fd_);
+    //     close(server_fd_);
+    //     return nr;
+    // }
 
     nr = listenLoop();
     if (nr < 0)
     {
-        close(stdout_pipe_[0]);
-        close(stderr_pipe_[0]);
+        // close(stdout_pipe_[0]);
+        // close(stderr_pipe_[0]);
         close(epoll_fd_);
         close(server_fd_);
         return nr;
     }
-    close(stdout_pipe_[0]);
-    close(stderr_pipe_[0]);
+    // close(stdout_pipe_[0]);
+    // close(stderr_pipe_[0]);
     return 0;
 }
 
@@ -143,6 +149,7 @@ int Server::bindServerSocket(sockaddr_in& server_addr)
 {
     if (bind(server_fd_, (sockaddr*)&server_addr, sizeof(server_addr)) < 0)
     {
+        std::cerr << "bind error\n";
         int nr = validator_.checkErrno(errno);
         close(server_fd_);
         return nr;
@@ -161,6 +168,7 @@ int Server::listenServer()
 {
     if (listen(server_fd_, SOMAXCONN) < 0)
     {
+        std::cerr << "listen errro\n";
         int nr = validator_.checkErrno(errno);
         close(server_fd_);
         return nr;
@@ -196,11 +204,13 @@ int Server::doEpollCtl(int mode, int fd, epoll_event* event)
 {
     if (epoll_ctl(epoll_fd_, mode, fd, event) == -1)
     {
+        std::cerr << "first round epoll_ctl error\n";
         int nr = validator_.checkErrno(errno);
         if (nr == 1)
         {
             if (epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, event) == -1)
             {
+                std::cerr << "epoll mod error\n";
                 nr = validator_.checkErrno(errno);
                 return nr;
             }
@@ -209,6 +219,7 @@ int Server::doEpollCtl(int mode, int fd, epoll_event* event)
         {
             if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, event) == -1)
             {
+                std::cerr << "epoll add error\n";
                 nr = validator_.checkErrno(errno);
                 return nr;
             }
@@ -297,8 +308,10 @@ int Server::listenLoop()
 /**
  * @brief checks what action to take on the based on the fd of the event.
  * If it's  a new fd then a new connection is being made.
- * If the events hold the status of EPOOLIN than a read event needs to be handeled.
- * If the events hold the status EPOLLOUT then a write events needs to be handeled.
+ * If the events hold the status of EPOLLIN than first it will check if the fd is a timeout fd
+ * if it isn't than a read event needs to be handeled.
+ * If the events hold the status of EPOLLOUT than first it will check if the fd is a timeout fd 
+ * if it isn't than a write events needs to be handeled.
  * 
  * @param event the event with the fd and the events needed for handeling
  * @return 0 when done,
@@ -316,52 +329,38 @@ int Server::checkEvents(epoll_event event)
             close(server_fd_);
             return -2;
         }
+        return 0;
     }
-    else if (event.events & EPOLLIN) // read event
+    if (event.events & EPOLLIN || event.events & EPOLLOUT) // timeout
     {
-        std::string request_buffer;
-        e_reponses function_response = requestHandler_.readRequest(fd, request_buffer);
-        if (function_response != E_ROK)
-        {
-            if (function_response == READ_HEADER_BODY_TOO_LARGE)
-            {
-                int return_value = responseHandler_.setupResponse(fd, "413 Length Too Large", 413, requestHandler_.getRequest(fd));
-                requestHandler_.removeNodeFromRequest(fd);
-                return return_value;
-            }
-            else if (function_response == HANDLE_COUT_CERR_OUTPUT)
-            {
-                responseHandler_.handleCoutErrOutput(fd);
-                return 0;
-            }
-            responseHandler_.setupResponse(fd, "400 Bad Request", 400, requestHandler_.getRequest(fd));
-            requestHandler_.removeNodeFromRequest(fd);
-            return -2;
-        }
-        function_response = requestHandler_.handleClient(request_buffer, event);
-        if (function_response == MODIFY_CLIENT_WRITE)
-        {
-            if (doEpollCtl(EPOLL_CTL_MOD, fd, &event) != 0)
-            {
-                requestHandler_.removeNodeFromRequest(fd);
-                doEpollCtl(EPOLL_CTL_DEL, fd, &event);
-                return -1;
-            }
-            // requestHandler_.removeNodeFromRequest(fd);
-            return 0;
-        }
-        return -2;
+        int nr = checkForTimeout(fd, event);
+        if (nr != 1)
+            return nr;
+    }
+    if (event.events & EPOLLIN) // read event
+    {
+        int nr = handleReadEvents(fd, event);
+        return nr;
     }
     else if (event.events & EPOLLOUT) // write 
     {
         e_server_request_return nr = responseHandler_.handleResponse(fd, requestHandler_.getRequest(fd), config_->getLocations());
-        doEpollCtl(EPOLL_CTL_DEL, fd, &event);
-        close(fd);
-        requestHandler_.removeNodeFromRequest(fd);
-        if (nr != SRH_OK)
-            return -2;
+        // TODO remove if statement for eval
+        if (nr != SRH_DO_TIMEOUT)
+        {
+            doEpollCtl(EPOLL_CTL_DEL, fd, &event);
+            doEpollCtl(EPOLL_CTL_DEL, client_timers_[fd], nullptr);
+            close(fd);
+            close(client_timers_[fd]);
+            requestHandler_.removeNodeFromRequest(fd);
+            client_timers_.erase(fd);
+            if (nr != SRH_OK)
+                return -2;
+            return 0;
+        }
+        return 0;
     }
-    return 0;
+    return -2;
 }
 
 /**
@@ -384,9 +383,145 @@ int Server::setupConnection()
         client_event.data.fd = client_fd;
         int nr = doEpollCtl(EPOLL_CTL_ADD, client_fd, &client_event);
         if (nr != 0)
+        {
+            std::cerr << "setup connecton new client to epoll failed\n";
+            return nr;
+        }
+        nr = setTimer(client_fd);
+        if (nr != 0)
             return nr;
         return 0;
     }
     else
+    {
+        std::cerr << "accept error\n";
         return validator_.checkErrno(errno);
+    }
+}
+
+/**
+ * @brief sets a timeout timer for the client so we dont have hanging connections
+ * 
+ * @param client_fd the client fd the timer is for
+ * @return 0 when done,
+ * @return -1 on error,
+ * @return -2 on critical error
+ */
+int Server::setTimer(int client_fd)
+{
+    int timer_fd = timerfd_create(CLOCK_MONOTONIC, 0);
+    if (timer_fd == -1)
+    {
+        std::cerr << "failed to create timerfd\n";
+        return -1;
+    }
+
+    itimerspec timeout{};
+    timeout.it_value.tv_sec = TIMEOUT_MS / 1000; // timeout in seconds
+    timeout.it_value.tv_nsec = (TIMEOUT_MS % 1000) * 1000000; // timeout in nanoseconds
+    timeout.it_interval.tv_sec = 0; //timer needs to go once, no periodic triggering
+    timeout.it_interval.tv_nsec = 0;
+
+    timerfd_settime(timer_fd, 0, &timeout, nullptr);
+
+    epoll_event timer_event{};
+    timer_event.data.fd = timer_fd;
+    timer_event.events = EPOLLIN;
+    int nr = doEpollCtl(EPOLL_CTL_ADD, timer_fd, &timer_event);
+    if (nr != 0)
+    {
+        std::cerr << "add timer fd to epoll failed\n";
+        return nr;
+    }
+    client_timers_[client_fd] = timer_fd;
+    return 0;
+}
+
+/**
+ * @brief checks if the fd is a timer fd, if it is that means a timeout has happend
+ * 
+ * @param fd the file descriptor of the timer
+ * @param event the epoll event from the fd
+ * @return 1 when the fd is not a timer fd,
+ * @return 0 when timeout response is send,
+ * @return -1 on error,
+ * @return -2 on critical error
+ */
+int Server::checkForTimeout(int fd, epoll_event& event)
+{
+    for (const std::pair<int, int> timer : client_timers_)
+    {
+        if (timer.second == fd)
+        {
+            int client_fd = timer.first;
+
+            uint64_t expirations;
+            ssize_t bytes_read = read(fd, &expirations, sizeof(expirations));
+            if (bytes_read < 0)
+            {
+                std::cerr << "Timeout read failed\n";
+                return -2;
+            }
+            // do client timeout
+            // TODO add cgi killer
+            int nr = responseHandler_.setupResponse(client_fd, 408, requestHandler_.getRequest(fd));
+            std::cout << "client timeout for " << client_fd << " reached\n";
+            doEpollCtl(EPOLL_CTL_DEL, client_fd, &event);
+            doEpollCtl(EPOLL_CTL_DEL, fd, nullptr);
+            close(client_fd);
+            close(fd);
+            client_timers_.erase(client_fd);
+            requestHandler_.removeNodeFromRequest(client_fd);
+            if (nr == SRH_OK)
+                return 0;
+            return nr;
+        }
+    }
+    return 1;
+}
+
+/**
+ * @brief reads into the request from the client and stores it for later handling
+ * 
+ * @param fd the client file descriptor
+ * @param event the epoll event from the client
+ * @return 0 when request is stored,
+ * @return -1 on eror,
+ * @return -2 on critical error
+ */
+int Server::handleReadEvents(int fd, epoll_event& event)
+{
+    std::string request_buffer;
+    e_reponses function_response = requestHandler_.readRequest(fd, request_buffer);
+    if (function_response != E_ROK)
+    {
+        if (function_response == READ_HEADER_BODY_TOO_LARGE)
+        {
+            int return_value = responseHandler_.setupResponse(fd, 413, requestHandler_.getRequest(fd));
+            requestHandler_.removeNodeFromRequest(fd);
+            return return_value;
+        }
+        else if (function_response == HANDLE_COUT_CERR_OUTPUT)
+        {
+            responseHandler_.handleCoutErrOutput(fd);
+            return 0;
+        }
+        responseHandler_.setupResponse(fd, 400, requestHandler_.getRequest(fd));
+        requestHandler_.removeNodeFromRequest(fd);
+        return -1;
+    }
+    function_response = requestHandler_.handleClient(request_buffer, event);
+    if (function_response == MODIFY_CLIENT_WRITE)
+    {
+        if (doEpollCtl(EPOLL_CTL_MOD, fd, &event) != 0)
+        {
+            std::cerr << "modify client in main loop failed\n";
+            requestHandler_.removeNodeFromRequest(fd);
+            doEpollCtl(EPOLL_CTL_DEL, fd, &event);
+            return -1;
+        }
+        // requestHandler_.removeNodeFromRequest(fd);
+        return 0;
+    }
+    return -2;
 }
