@@ -319,7 +319,7 @@ int Server::checkEvents(epoll_event event)
     }
     else if (event.events & EPOLLIN) // read event
     {
-        std::string request_buffer;
+        std::string request_buffer = "";
         e_reponses function_response = requestHandler_.readRequest(fd, request_buffer);
         if (function_response != E_ROK)
         {
@@ -327,6 +327,8 @@ int Server::checkEvents(epoll_event event)
             {
                 int return_value = responseHandler_.setupResponse(fd, "413 Length Too Large", 413, requestHandler_.getRequest(fd));
                 requestHandler_.removeNodeFromRequest(fd);
+                doEpollCtl(EPOLL_CTL_DEL, fd, &event);
+                close(fd);
                 return return_value;
             }
             else if (function_response == HANDLE_COUT_CERR_OUTPUT)
@@ -336,6 +338,8 @@ int Server::checkEvents(epoll_event event)
             }
             responseHandler_.setupResponse(fd, "400 Bad Request", 400, requestHandler_.getRequest(fd));
             requestHandler_.removeNodeFromRequest(fd);
+            doEpollCtl(EPOLL_CTL_DEL, fd, &event);
+            close(fd);
             return -2;
         }
         function_response = requestHandler_.handleClient(request_buffer, event);
@@ -345,6 +349,7 @@ int Server::checkEvents(epoll_event event)
             {
                 requestHandler_.removeNodeFromRequest(fd);
                 doEpollCtl(EPOLL_CTL_DEL, fd, &event);
+                close(fd);
                 return -1;
             }
             // requestHandler_.removeNodeFromRequest(fd);
