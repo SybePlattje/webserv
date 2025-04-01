@@ -39,7 +39,7 @@ class ServerResponseValidator
         const std::vector<std::shared_ptr<Location>>& locations_;
         const std::string& root_;
 
-        void setPossibleLocation(size_t token_size, std::vector<std::string>& token_location, std::map<size_t, std::string>& found_location);
+        void setPossibleLocation(size_t token_size, std::vector<std::string>& token_location, std::map<size_t, std::shared_ptr<Location>>& found_location);
         bool fileExists(const std::string& path);
 };
 

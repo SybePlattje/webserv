@@ -8,5 +8,15 @@
 	<body>
 		<h1>File uploaded</h1>
 		<p>Thank you for uploading!</p>
+        <form action="/" method="get" id="backToHome">
+            <button type="submit">Back</button>
+        </form>
 	</body>
 </html>
+
+<script>
+    document.getElementById("backToHome").addEventListener("submit", function(event) {
+        event.preventDefault();
+        window.location.href = this.action;
+    });
+</script>

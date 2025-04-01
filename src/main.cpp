@@ -10,7 +10,10 @@ int main(int argc, char* argv[]) {
         std::unique_ptr<Config> config = ConfigLoader::load(argv[1]);
         // ConfigPrinter::print(std::cout, *config);
         Server server(config);
-        server.setupEpoll();
+        int nr = server.setupEpoll();
+        while (nr != -2)
+            nr = server.setupEpoll();
+        // ConfigPrinter::print(std::cout, *config);
         return 0;
     }
     catch (const ConfigParser::ParseError& e) {

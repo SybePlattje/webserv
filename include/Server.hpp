@@ -1,8 +1,9 @@
 #ifndef SERVER_HPP
 # define SERVER_HPP
 
-# define MAX_EVENTS 10
-# define TIMEOUT_MS 10000 // 10 seconds
+# define MAX_EVENTS 1024
+# define TIMEOUT_MS 20000 // 20 seconds
+# define EPOLL_WAIT_TIME 10000 // 10 seconds
 
 # include "Config.hpp"
 # include <string>
@@ -35,6 +36,7 @@ class Server
         int epoll_fd_;
         int stdout_pipe_[2];
         int stderr_pipe_[2];
+        std::unordered_map<int, int> client_timers_;
 
 
         int createServerSocket(std::string& server_name, uint16_t port);
@@ -48,6 +50,9 @@ class Server
         int listenLoop();
         int checkEvents(epoll_event event);
         int setupConnection();
+        int setTimer(int client_fd);
+        int checkForTimeout(int fd, epoll_event& event);
+        int handleReadEvents(int fd, epoll_event& event);
 };
 
 #endif
