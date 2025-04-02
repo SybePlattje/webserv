@@ -39,7 +39,7 @@ void ServerResponseHandler::setStdoutPipe(int stdout_pipe[])
  */
 e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_client_data client_data, std::vector<std::shared_ptr<Location>> locations)
 {
-    std::string file_path;
+    std::string file_path = "";
     std::vector<std::shared_ptr<Location>>::const_iterator location_it = locations.begin();
 
     if (!SRV_.checkHTTPVersion(client_data.http_version))
@@ -88,7 +88,7 @@ e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_c
                 else if (nr == RVR_NO_FILE_PERMISSION)
                     return setupResponse(client_fd, 403, client_data);
             }
-            std::string body;
+            std::string body = "";
             e_server_request_return response = buildDirectoryResponse(file_path, body);
             if (response != SRH_OK)
                 return handleReturns(client_fd, RVR_DIR_FAILED, client_data, location_it);
@@ -121,7 +121,7 @@ e_server_request_return ServerResponseHandler::setupResponse(int client_fd, uint
         if (dot_pos == std::string::npos)
             sendRedirectResponse(client_fd, code, location);
     }
-    std::string status_text;
+    std::string status_text = "";
     if (status_codes_.find(code) != status_codes_.end())
     {
         try
@@ -168,8 +168,8 @@ e_server_request_return ServerResponseHandler::setupResponse(int client_fd, uint
 void ServerResponseHandler::handleCoutErrOutput(int fd)
 {
     ssize_t bytes_recieved = 0;
-    std::string request_buffer;
-    char buffer[BUFFER_SIZE];
+    std::string request_buffer = "";
+    char buffer[BUFFER_SIZE] = {0};
     while ((bytes_recieved = read(fd, buffer, BUFFER_SIZE - 1)) > 0)
     {
         buffer[bytes_recieved] = '\0';
@@ -394,7 +394,7 @@ e_server_request_return ServerResponseHandler::sendChunkedResponse(int client_fd
  */
 e_server_request_return ServerResponseHandler::sendFile(int client_fd, std::ifstream& file_stream)
 {
-    char buffer[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE] = {0};
     while(file_stream.read(buffer, BUFFER_SIZE) || file_stream.gcount() > 0)
     {
         if (send(client_fd, buffer, file_stream.gcount(), MSG_NOSIGNAL) < 0)
@@ -413,7 +413,7 @@ std::vector<std::string> ServerResponseHandler::sourceChunker(std::string& sourc
 {
     char delimiter = '/';
     std::vector<std::string> result;
-    std::string token;
+    std::string token = "";
     if (source == "/")
     {
         result.push_back("/");
@@ -445,7 +445,7 @@ std::vector<std::string> ServerResponseHandler::sourceChunker(std::string& sourc
  */
 void ServerResponseHandler::logMsg(const char* msg, int fd)
 {
-    std::string file;
+    std::string file = "";
     if (fd == stdout_pipe_[0])
         file = STANDARD_LOG_FILE;
     else
@@ -532,7 +532,6 @@ e_server_request_return ServerResponseHandler::handleCGI(
  */
 e_server_request_return ServerResponseHandler::sendRedirectResponse(int client_fd, uint16_t code, std::string& location)
 {
-
     std::string status;
     if (status_codes_.find(code) != status_codes_.end())
     {

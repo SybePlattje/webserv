@@ -51,11 +51,18 @@ void ServerRequestHandler::setStderrPipe(int stderr_pipe[])
  */
 e_reponses ServerRequestHandler::readRequest(int client_fd, std::string& request_buffer)
 {
-    char buffer[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE] = {0};
     ssize_t bytes_recieved = 0;
     if (request_.find(client_fd) == request_.end())
     {
         s_client_data node;
+        node.chunked = false;
+        node.http_version = "";
+        node.request_body = "";
+        node.request_header = "";
+        node.request_method = "";
+        node.request_source = "";
+        node.request_type = "";
         request_.insert({client_fd, node});
     }
 
@@ -187,7 +194,7 @@ e_reponses ServerRequestHandler::setMethodSourceHttpVersion(std::string& request
  */
 e_reponses ServerRequestHandler::handleChunkedRequest(size_t body_start, std::string& request_buffer, int client_fd, char buffer[])
 {
-    std::string decoded_body;
+    std::string decoded_body = "";
     size_t pos = body_start;
     while(true)
     {
