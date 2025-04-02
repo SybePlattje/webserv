@@ -329,6 +329,7 @@ int Server::checkEvents(epoll_event event)
             close(server_fd_);
             return -2;
         }
+        return 0;
     }
     else if (event.events & EPOLLIN) // read event
     {

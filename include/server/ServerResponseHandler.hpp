@@ -20,7 +20,6 @@ enum e_server_request_return
     SRH_FSTREAM_ERROR,
     SRH_CGI_ERROR,
     SRH_DO_TIMEOUT,
-    SRH_CGI_ERROR,
 };
 
 class ServerResponseHandler
@@ -62,20 +61,6 @@ class ServerResponseHandler
             const std::string& script_path);
         e_server_request_return sendRedirectResponse(int client_fd, uint16_t code, std::string& location);
         void fillStatusCodes();
-
-        /**
-         * @brief Handle CGI request processing
-         * @param client_fd Client socket
-         * @param client_data Request data
-         * @param location Location configuration
-         * @param script_path Path to CGI script
-         * @return SRH_OK on success, error code otherwise
-         */
-        e_server_request_return handleCGI(
-            int client_fd,
-            const s_client_data& client_data,
-            const Location& location,
-            const std::string& script_path);
 };
 
 #endif
