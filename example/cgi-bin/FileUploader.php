@@ -1,7 +1,13 @@
 <?php
 define("FILE_UPLOAD_LOCATION", "upload/"); // key, value
 define("MAX_FILE_SIZE", 10 * 1024 * 1024); // 10 MB limit
-$raw_data = $argv[1];
+// $raw_data = $argv[1];
+
+$raw_data = '';
+while (($chunk = fread(STDIN, 8192)) != false && $chunk !== '')
+{
+    $raw_data .= $chunk;
+}
 if (empty($raw_data))
 {
     fwrite(STDERR, "No data recieved.\n");
@@ -74,7 +80,7 @@ function parseMultipart($raw_data)
             }
             $filename = $name_matches[1];
             $file_data = substr($part, strpos($part, "\r\n\r\n") + 4);
-            $file_data = rtrim($file_data, "\r\n");
+            $file_data = rtrim($file_data, "\r\n\r\n");
             return ['filename' => $filename, 'file_data' => $file_data];
         }
     }

@@ -197,7 +197,7 @@ e_server_request_return ServerResponseHandler::handleReturns(int client_fd, e_re
     switch (nr)
     {
         case RVR_RETURN:
-            std::cout << "return body is " << location_it->get()->getReturn().body << " return body is " << location_it->get()->getReturn().body << std::endl;
+            std::cout << "return code is " << location_it->get()->getReturn().code << " return body is " << location_it->get()->getReturn().body << " location is " << location_it->get()->getRoot() << std::endl;
             setupResponse(client_fd, location_it->get()->getReturn().code, data, location_it->get()->getReturn().body);
             break;
         case RVR_NOT_FOUND:
@@ -207,7 +207,7 @@ e_server_request_return ServerResponseHandler::handleReturns(int client_fd, e_re
             setupResponse(client_fd, 500, data);
             break;
         case RVR_METHOD_NOT_ALLOWED:
-            setupResponse(client_fd, 400, data);
+            setupResponse(client_fd, 405, data);
             break;
         case RVR_NO_FILE_PERMISSION:
             setupResponse(client_fd, 403, data);
@@ -300,22 +300,24 @@ e_server_request_return ServerResponseHandler::sendResponse(int client_fd, const
     }
     else
     {
+        std::streamsize file_size;
         if (file_stream.good())
         {
-            std::cout << "locations is: " << file_location << std::endl;
+            // std::cout << "locations is: " << file_location << std::endl;
             content = true;
             file_stream.seekg(0, std::ios::end);
-            std::streamsize file_size = file_stream.tellg();
+            file_size = file_stream.tellg();
             file_stream.seekg(0, std::ios::beg);
             response << "Content-Length: " << file_size << "\r\n\r\n";
         }
         else
             response << "Content-Length: 0\r\n\r\n";
+        // std::cout << "RESPONSE IS [" << response.str() << "]" << std::endl;
         if (send(client_fd, response.str().c_str(), response.str().size(), 0) < 0)
             return SRH_SEND_ERROR;
         if (content)
         {
-            if (sendFile(client_fd, file_stream) != SRH_OK)
+            if (sendFile(client_fd, file_stream, file_size) != SRH_OK)
                 return SRH_SEND_ERROR;
         }
     }
@@ -392,11 +394,12 @@ e_server_request_return ServerResponseHandler::sendChunkedResponse(int client_fd
  * @return SRH_OK when done,
  * @return SRH_SEND_ERROR when send() fails
  */
-e_server_request_return ServerResponseHandler::sendFile(int client_fd, std::ifstream& file_stream)
+e_server_request_return ServerResponseHandler::sendFile(int client_fd, std::ifstream& file_stream, std::streamsize size)
 {
     char buffer[BUFFER_SIZE] = {0};
-    while(file_stream.read(buffer, BUFFER_SIZE) || file_stream.gcount() > 0)
+    while(file_stream.read(buffer, size) || file_stream.gcount() > 0)
     {
+        // std::cout << buffer;
         if (send(client_fd, buffer, file_stream.gcount(), MSG_NOSIGNAL) < 0)
             return SRH_SEND_ERROR;
     }
@@ -486,6 +489,8 @@ e_server_request_return ServerResponseHandler::handleCGI(
         if (query_pos != std::string::npos) {
             query_string = client_data.request_source.substr(query_pos + 1);
         }
+
+        //std::cout << "IN HANDLE CGI REQIEST_BODY IS [" << client_data.request_body << "]" << std::endl;
 
         // Execute CGI script
         auto [status_code, response] = handler.handleRequest(

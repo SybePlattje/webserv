@@ -292,11 +292,11 @@ int Server::listenLoop()
     epoll_event events[MAX_EVENTS];
     while (true)
     {
-        int event_count = epoll_wait(epoll_fd_, events, MAX_EVENTS, TIMEOUT_MS);
+        int event_count = epoll_wait(epoll_fd_, events, MAX_EVENTS, 0);
         for (int i = 0; i < event_count; ++i)
         {
             int nr = checkEvents(events[i]);
-            if (nr < 0)
+            if (nr == -2)
                 return nr;
         }
     }
@@ -514,6 +514,7 @@ int Server::handleReadEvents(int fd, epoll_event& event)
             responseHandler_.handleCoutErrOutput(fd);
             return 0;
         }
+        std::cerr << "function_response is [" << function_response << "]\n";
         timer_fd = client_timers_.at(fd);
         responseHandler_.setupResponse(fd, 400, requestHandler_.getRequest(fd));
         doEpollCtl(EPOLL_CTL_DEL, fd, &event);

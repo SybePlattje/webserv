@@ -48,27 +48,26 @@ std::pair<int, std::string> CGIExecutor::execute(
         const char* args[] = {
             interpreter.c_str(),
             new_script_path.c_str(),
-            request_body.c_str(),
             nullptr
         };
-
         execve(interpreter.c_str(), const_cast<char* const*>(args), const_cast<char* const*>(env_array.data()));
         exit(EXIT_FAILURE);  // Only reached if execve fails
     }
 
-    int status;
-    waitpid(pid, &status, 0);
-    int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 
     // Parent process
     close(input_pipe_[0]);   // Close read end of input
     close(output_pipe_[1]);  // Close write end of output
 
     // Write request body to script if present
-    // if (!request_body.empty()) {
-    //     write(input_pipe_[1], request_body.c_str(), request_body.length());
-    // }
+    if (!request_body.empty()) {
+        write(input_pipe_[1], request_body.data(), request_body.length());
+    }
     close(input_pipe_[1]);  // Close after writing
+
+    int status;
+    waitpid(pid, &status, 0);
+    int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 
     // Read script output
     std::string output = readOutput();
