@@ -5,7 +5,7 @@
 // Default configuration file path if none specified
 static const char* DEFAULT_CONFIG = "webserv.conf";
 
-std::unique_ptr<Config> ConfigLoader::load(const char* path) {
+std::vector<std::unique_ptr<Config>> ConfigLoader::load(const char* path) {
     // Use provided path or fall back to default
     const std::string path_to_config = path ? path : DEFAULT_CONFIG;
 
@@ -17,12 +17,14 @@ std::unique_ptr<Config> ConfigLoader::load(const char* path) {
 
     try {
         // Parse configuration from file
-        std::unique_ptr<Config> config = ConfigParser::parse(config_file);
+        std::vector<std::unique_ptr<Config>> configs = ConfigParser::parse(config_file);
 
-        // Validate configuration structure and values
-        ConfigValidator::validate(*config);
+        // Validate each server configuration
+        for (const auto& config : configs) {
+            ConfigValidator::validate(*config);
+        }
         
-        return config;
+        return configs;
     } catch (const ConfigParser::ParseError& e) {
         // Add file path context to parsing errors
         throw std::runtime_error("Error in " + path_to_config + ": " + e.what());

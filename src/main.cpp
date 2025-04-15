@@ -5,15 +5,15 @@
 
 int main(int argc, char* argv[]) {
     ::signal(SIGPIPE, SIG_IGN);
-	(void) argc;
+    (void) argc;
     try {
-        std::unique_ptr<Config> config = ConfigLoader::load(argv[1]);
+        auto configs = ConfigLoader::load(argv[1]);
+        ConfigPrinter::printConfigs(std::cout, configs);
+        // Server server(config);
+        // int nr = server.setupEpoll();
         // ConfigPrinter::print(std::cout, *config);
-        Server server(config);
-        int nr = server.setupEpoll();
-        // ConfigPrinter::print(std::cout, *config);
-        nr *= -1;
-        return nr;
+        // nr *= -1;
+        // return nr;
     }
     catch (const ConfigParser::ParseError& e) {
         std::cerr << "Parse error: " << e.what() << "\n";

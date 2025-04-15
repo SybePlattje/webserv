@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 class Config;
 
@@ -16,18 +17,18 @@ class Config;
 class ConfigLoader {
 public:
     /**
-     * @brief Loads and parses a configuration file
+     * @brief Loads and parses a configuration file containing multiple server blocks
      *
      * Opens the specified file, reads its contents, and passes
      * it to the parser. Handles file operation errors and
      * provides appropriate error messages.
      *
      * @param path Path to the configuration file
-     * @return Unique pointer to the parsed Config object
+     * @return Vector of unique pointers to the parsed Config objects, one for each server block
      * @throws std::runtime_error if file cannot be opened or read
      * @throws ConfigParser::ParseError if configuration syntax is invalid
      */
-    static std::unique_ptr<Config> load(const char* path);
+    static std::vector<std::unique_ptr<Config>> load(const char* path);
 
 private:
     ConfigLoader() = delete;  // Static class - no instances allowed

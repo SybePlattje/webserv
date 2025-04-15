@@ -5,6 +5,8 @@
 #include <regex>
 #include <stdexcept>
 #include <set>
+#include <vector>
+#include <memory>
 
 class Config;
 
@@ -19,11 +21,15 @@ public:
     static constexpr size_t MAX_BODY_SIZE = 1024 * 1024 * 1024; // 1GB
     static constexpr size_t MAX_PATH_LENGTH = 4096;
 
-    // Main validation method
+    // Main validation methods
     static void validate(const Config& config);
+    static void validateConfigs(const std::vector<std::unique_ptr<Config>>& configs);
 
 private:
     ConfigValidator() = delete;  // Static class
+
+    // Multi-server validation
+    static void validateNoDuplicatePorts(const std::vector<std::unique_ptr<Config>>& configs);
 
     // Path validation
     static void validatePath(const std::string& path, const std::string& context);

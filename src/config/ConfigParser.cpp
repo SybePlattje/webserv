@@ -1,9 +1,9 @@
 #include "Config.hpp"
 
-std::unique_ptr<Config> ConfigParser::parse(std::istream& input) {
+std::vector<std::unique_ptr<Config>> ConfigParser::parse(std::istream& input) {
     ConfigLexer lexer(input);
     ConfigParser parser(lexer);
-    return parser.parseConfig();
+    return parser.parseConfigs();
 }
 
 void ConfigParser::advance() {
@@ -83,9 +83,9 @@ uint64_t ConfigParser::readNumber(const std::string& error_msg) {
 }
 
 void ConfigParser::handleDirective(const std::string& directive,
-                                 ConfigBuilder& builder,
-                                 const DirectiveHandler& handler,
-                                 const ValueValidator& validator) {
+                                ConfigBuilder& builder,
+                                const DirectiveHandler& handler,
+                                const ValueValidator& validator) {
     std::string value = readValue("Expected value for " + directive);
     if (validator) {
         validator(valueToken);
@@ -94,25 +94,33 @@ void ConfigParser::handleDirective(const std::string& directive,
     expectSemicolon();
 }
 
-std::unique_ptr<Config> ConfigParser::parseConfig() {
+std::vector<std::unique_ptr<Config>> ConfigParser::parseConfigs() {
+    std::vector<std::unique_ptr<Config>> configs;
+    advance();
+
+    while (current_token_.type != TokenType::END_OF_FILE) {
+        if (current_token_.value != "server") {
+            throw ParseError("Expected 'server' block", current_token_);
+        }
+        advance();
+
+        configs.push_back(parseServerBlock());
+    }
+
+    if (configs.empty()) {
+        throw ParseError("No server blocks found in configuration", current_token_);
+    }
+
+    return configs;
+}
+
+std::unique_ptr<Config> ConfigParser::parseServerBlock() {
     ConfigBuilder builder;
-    advance();
-
-    if (current_token_.value != "server") {
-        throw ParseError("Expected 'server' block", current_token_);
-    }
-    advance();
-
-    parseServerBlock(builder);
-
-    if (current_token_.type != TokenType::END_OF_FILE) {
-        throw ParseError("Unexpected content after server block", current_token_);
-    }
-
+    parseServerBlockContent(builder);
     return builder.build();
 }
 
-void ConfigParser::parseServerBlock(ConfigBuilder& builder) {
+void ConfigParser::parseServerBlockContent(ConfigBuilder& builder) {
     expect(TokenType::LBRACE, "Expected '{' after 'server'");
 
     while (current_token_.type != TokenType::RBRACE) {

@@ -1,8 +1,19 @@
 #include "Config.hpp"
 
-void ConfigPrinter::print(std::ostream& out, const Config& config) {
-    out << "Configuration loaded successfully:" << NEWLINE;
+void ConfigPrinter::printConfigs(std::ostream& out, const std::vector<std::unique_ptr<Config>>& configs) {
+    out << "Configuration loaded successfully with " << configs.size() << " server blocks:" << NEWLINE << NEWLINE;
     
+    for (size_t i = 0; i < configs.size(); ++i) {
+        out << SEPARATOR;
+        out << "Server Block " << (i + 1) << ":" << NEWLINE;
+        print(out, *configs[i]);
+        if (i < configs.size() - 1) {
+            out << NEWLINE;
+        }
+    }
+}
+
+void ConfigPrinter::print(std::ostream& out, const Config& config) {
     printServerInfo(out, config);
     out << NEWLINE;
     

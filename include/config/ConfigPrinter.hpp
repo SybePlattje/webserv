@@ -3,6 +3,8 @@
 
 #include "Location.hpp"
 #include <ostream>
+#include <vector>
+#include <memory>
 
 class Config;
 
@@ -16,7 +18,14 @@ class Config;
 class ConfigPrinter {
 public:
     /**
-     * @brief Prints complete configuration to output stream
+     * @brief Prints multiple server configurations to output stream
+     * @param out Output stream to write to
+     * @param configs Vector of configurations to print
+     */
+    static void printConfigs(std::ostream& out, const std::vector<std::unique_ptr<Config>>& configs);
+
+    /**
+     * @brief Prints a single server configuration to output stream
      * @param out Output stream to write to
      * @param config Configuration to print
      */
@@ -77,6 +86,7 @@ private:
     // Constants for formatting
     static constexpr const char* INDENT = "  ";     ///< Indentation for nested items
     static constexpr const char* NEWLINE = "\n";    ///< Line ending character
+    static constexpr const char* SEPARATOR = "\n=== Server Block ===\n"; ///< Separator between server blocks
 };
 
 #endif

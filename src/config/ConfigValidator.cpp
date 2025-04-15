@@ -1,5 +1,29 @@
 #include "Config.hpp"
 
+void ConfigValidator::validateConfigs(const std::vector<std::unique_ptr<Config>>& configs) {
+    if (configs.empty()) {
+        throw ValidationError("No server configurations found");
+    }
+
+    // First validate each individual server config
+    for (const auto& config : configs) {
+        validate(*config);
+    }
+
+    // Then validate inter-server requirements
+    validateNoDuplicatePorts(configs);
+}
+
+void ConfigValidator::validateNoDuplicatePorts(const std::vector<std::unique_ptr<Config>>& configs) {
+    std::set<uint16_t> used_ports;
+    for (const auto& config : configs) {
+        uint16_t port = config->getPort();
+        if (!used_ports.insert(port).second) {
+            throw ValidationError("Duplicate port number found: " + std::to_string(port));
+        }
+    }
+}
+
 void ConfigValidator::validate(const Config& config) {
     // Validate server settings
     validatePort(config.getPort());
@@ -151,7 +175,7 @@ void ConfigValidator::validateLocation(const Location& location) {
     // Validate return directive if present
     if (location.hasReturn()) {
         validateReturnDirective(location.getReturn(), 
-                              "Location " + location.getPath());
+                             "Location " + location.getPath());
     }
 }
 

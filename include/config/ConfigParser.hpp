@@ -51,10 +51,10 @@ public:
     /**
      * @brief Parses configuration from an input stream
      * @param input Stream containing configuration data
-     * @return Unique pointer to parsed Config object
+     * @return Vector of unique pointers to parsed Config objects, one for each server block
      * @throws ParseError on syntax or semantic errors
      */
-    static std::unique_ptr<Config> parse(std::istream& input);
+    static std::vector<std::unique_ptr<Config>> parse(std::istream& input);
 
 private:
     /**
@@ -68,14 +68,9 @@ private:
     using ValueValidator = std::function<void(const Token&)>;
 
     // Main parsing methods
-    std::unique_ptr<Config> parseConfig();
-
-    /**
-     * @brief Parses a server block
-     * @param builder Configuration builder to store settings
-     * @throws ParseError on invalid server block syntax
-     */
-    void parseServerBlock(ConfigBuilder& builder);
+    std::vector<std::unique_ptr<Config>> parseConfigs();
+    std::unique_ptr<Config> parseServerBlock();
+    void parseServerBlockContent(ConfigBuilder& builder);
 
     /**
      * @brief Parses a location block
@@ -125,28 +120,8 @@ private:
                         const ValueValidator& validator = nullptr);
     
     // Value reading utilities
-    /**
-     * @brief Reads a single directive value
-     * @param error_msg Error message if value is missing
-     * @return The directive value
-     * @throws ParseError if value is missing or invalid
-     */
     std::string readValue(const std::string& error_msg);
-
-    /**
-     * @brief Reads a list of directive values
-     * @param error_msg Error message if list is empty
-     * @return Vector of values
-     * @throws ParseError if list is empty or invalid
-     */
     std::vector<std::string> readValueList(const std::string& error_msg);
-
-    /**
-     * @brief Reads a numeric directive value
-     * @param error_msg Error message if value is missing
-     * @return The numeric value
-     * @throws ParseError if value is missing or not a number
-     */
     uint64_t readNumber(const std::string& error_msg);
 
     // Token handling
