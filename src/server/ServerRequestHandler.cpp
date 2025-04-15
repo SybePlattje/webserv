@@ -51,11 +51,12 @@ void ServerRequestHandler::setStderrPipe(int stderr_pipe[])
  */
 e_reponses ServerRequestHandler::readRequest(int client_fd, std::string& request_buffer)
 {
-    char buffer[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE] = {0};
     ssize_t bytes_recieved = 0;
     if (request_.find(client_fd) == request_.end())
     {
         s_client_data node;
+        node.chunked = false;
         request_.insert({client_fd, node});
     }
 
@@ -80,7 +81,7 @@ e_reponses ServerRequestHandler::readRequest(int client_fd, std::string& request
  * @return MODIFY_CLIENT_WRITE when everything is good and we are ready to change the event to a write event in epoll.
  * @return HANDLE_CLIENT_EMPTY request_buffer is empty error
  */
-e_reponses ServerRequestHandler::handleClient(std::string request_buffer, epoll_event& event)
+e_reponses ServerRequestHandler::handleClient(std::string& request_buffer, epoll_event& event)
 {
     event.events = EPOLLOUT;
     if (!request_buffer.empty())
@@ -108,7 +109,7 @@ e_reponses ServerRequestHandler::handleClient(std::string request_buffer, epoll_
  */
 e_reponses ServerRequestHandler::readHeader(std::string& request_buffer, size_t header_end, int client_fd, char buffer[])
 {
-    std::cout << request_buffer << std::endl;
+    // std::cout << request_buffer << std::endl;
 
     if (setMethodSourceHttpVersion(request_buffer, client_fd) == CLIENT_REQUEST_DATA_EMPTY)
         return CLIENT_REQUEST_DATA_EMPTY;
@@ -187,7 +188,7 @@ e_reponses ServerRequestHandler::setMethodSourceHttpVersion(std::string& request
  */
 e_reponses ServerRequestHandler::handleChunkedRequest(size_t body_start, std::string& request_buffer, int client_fd, char buffer[])
 {
-    std::string decoded_body;
+    std::string decoded_body = "";
     size_t pos = body_start;
     while(true)
     {
@@ -232,7 +233,7 @@ e_reponses ServerRequestHandler::handleChunkedRequest(size_t body_start, std::st
  */
 int ServerRequestHandler::useRecv(int client_fd, char buffer[], std::string& request_buffer)
 {
-    ssize_t bytes_recieved = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
+    ssize_t bytes_recieved = recv(client_fd, buffer, BUFFER_SIZE - 1, MSG_DONTWAIT);
     if (bytes_recieved < 0)
         return -1;
     if (bytes_recieved == 0)
@@ -263,12 +264,39 @@ int ServerRequestHandler::useRecv(int client_fd, char buffer[], std::string& req
  */
 e_reponses ServerRequestHandler::handleContentLength(size_t size, std::string& request_buffer, size_t body_start, int client_fd, char buffer[])
 {
-    while (request_buffer.size() < body_start + size)
+    // std::cout << "BODY START AT BEGIN IS [" << body_start << "] SIZE AT START IS [" << size << "]\n";
+    while (true)
     {
-        int recv_return = useRecv(client_fd, buffer, request_buffer);
-        if (recv_return == 0) break;
-        if (recv_return == -1) return RECV_FAILED;
+        // std::cout << "body_start + size is [" << body_start + size << "] request_buffer.size() is [" << request_buffer.size() << "]\n";;
+        if (request_buffer.size() < body_start + size)
+        {
+            ssize_t bytes_read = recv(client_fd, buffer, BUFFER_SIZE - 1, MSG_DONTWAIT);
+            if (bytes_read == -1)
+            {
+                std::cerr << "recv failed and returned -1\n";
+                return RECV_FAILED;
+            }
+            else if (bytes_read == 0)
+                break;
+            else
+            {
+                try
+                {
+                    request_buffer.append(buffer, bytes_read);
+                    if (request_buffer.size() >= size + body_start)
+                        break;
+                }
+                catch (std::exception& e)
+                {
+                    std::cerr << "append failed with message: " << e.what() << "\n";
+                    return EXCEPTION;
+                }
+            }
+        }
+        else
+            break;
     }
     getRequest(client_fd).request_body = request_buffer.substr(body_start, size);
+    // std::cout << "request body at and is [" << getRequest(client_fd).request_body << "]" << std::endl;
     return E_ROK;
 }

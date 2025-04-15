@@ -42,3 +42,4 @@ tests*
 *cmake-build-debug
 webserv
 *.log
+upload/

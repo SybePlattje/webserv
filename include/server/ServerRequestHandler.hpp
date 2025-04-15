@@ -7,7 +7,7 @@
 # include <array>
 # include <sys/epoll.h>
 
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 1024 * 1024
 
 enum e_reponses {
     E_ROK,
@@ -19,6 +19,8 @@ enum e_reponses {
     NO_CONTENT_TYPE,
     CLIENT_REQUEST_DATA_EMPTY,
     RECV_FAILED,
+    RECV_EMPTY,
+    EXCEPTION,
 };
 
 struct s_client_data
@@ -40,7 +42,7 @@ class ServerRequestHandler
         s_client_data& getRequest(int fd);
         void removeNodeFromRequest(int fd);
         e_reponses readRequest(int client_fd, std::string& request_buffer);
-        e_reponses handleClient(std::string request_buffer, epoll_event& event);
+        e_reponses handleClient(std::string& request_buffer, epoll_event& event);
         void setStdoutPipe(int out_pipe[]);
         void setStderrPipe(int err_pipe[]);
     private:

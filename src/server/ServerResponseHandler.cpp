@@ -39,7 +39,7 @@ void ServerResponseHandler::setStdoutPipe(int stdout_pipe[])
  */
 e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_client_data client_data, std::vector<std::shared_ptr<Location>> locations)
 {
-    std::string file_path;
+    std::string file_path = "";
     std::vector<std::shared_ptr<Location>>::const_iterator location_it = locations.begin();
 
     if (!SRV_.checkHTTPVersion(client_data.http_version))
@@ -54,11 +54,27 @@ e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_c
     if (nr != RVR_OK)
         return handleReturns(client_fd, nr, client_data, location_it);
     
+    // Check for CGI before file handling
+    if (location_it->get()->hasCGI()) {
+        std::string ext = getContentType(file_path);
+        if (location_it->get()->isCGIExtension(ext)) {
+            return handleCGI(client_fd, client_data, *location_it->get(), file_path);
+        }
+    }
+
     // TODO remove when done with project is for testing timeout
     if (location_it->get()->getPath() == "/timeout")
     {
         return SRH_DO_TIMEOUT;
     }
+    // Check for CGI before file handling
+    if (location_it->get()->hasCGI()) {
+        std::string ext = getContentType(file_path);
+        if (location_it->get()->isCGIExtension(ext)) {
+            return handleCGI(client_fd, client_data, *location_it->get(), file_path);
+        }
+    }
+
     nr = SRV_.checkFile(file_path, location_it);
     if (nr != RVR_OK)
     {
@@ -72,7 +88,7 @@ e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_c
                 else if (nr == RVR_NO_FILE_PERMISSION)
                     return setupResponse(client_fd, 403, client_data);
             }
-            std::string body;
+            std::string body = "";
             e_server_request_return response = buildDirectoryResponse(file_path, body);
             if (response != SRH_OK)
                 return handleReturns(client_fd, RVR_DIR_FAILED, client_data, location_it);
@@ -105,7 +121,7 @@ e_server_request_return ServerResponseHandler::setupResponse(int client_fd, uint
         if (dot_pos == std::string::npos)
             sendRedirectResponse(client_fd, code, location);
     }
-    std::string status_text;
+    std::string status_text = "";
     if (status_codes_.find(code) != status_codes_.end())
     {
         try
@@ -152,8 +168,8 @@ e_server_request_return ServerResponseHandler::setupResponse(int client_fd, uint
 void ServerResponseHandler::handleCoutErrOutput(int fd)
 {
     ssize_t bytes_recieved = 0;
-    std::string request_buffer;
-    char buffer[BUFFER_SIZE];
+    std::string request_buffer = "";
+    char buffer[BUFFER_SIZE] = {0};
     while ((bytes_recieved = read(fd, buffer, BUFFER_SIZE - 1)) > 0)
     {
         buffer[bytes_recieved] = '\0';
@@ -181,7 +197,7 @@ e_server_request_return ServerResponseHandler::handleReturns(int client_fd, e_re
     switch (nr)
     {
         case RVR_RETURN:
-            std::cout << "return body is " << location_it->get()->getReturn().body << " return body is " << location_it->get()->getReturn().body << std::endl;
+            std::cout << "return code is " << location_it->get()->getReturn().code << " return body is " << location_it->get()->getReturn().body << " location is " << location_it->get()->getRoot() << std::endl;
             setupResponse(client_fd, location_it->get()->getReturn().code, data, location_it->get()->getReturn().body);
             break;
         case RVR_NOT_FOUND:
@@ -191,7 +207,7 @@ e_server_request_return ServerResponseHandler::handleReturns(int client_fd, e_re
             setupResponse(client_fd, 500, data);
             break;
         case RVR_METHOD_NOT_ALLOWED:
-            setupResponse(client_fd, 400, data);
+            setupResponse(client_fd, 405, data);
             break;
         case RVR_NO_FILE_PERMISSION:
             setupResponse(client_fd, 403, data);
@@ -284,22 +300,24 @@ e_server_request_return ServerResponseHandler::sendResponse(int client_fd, const
     }
     else
     {
+        std::streamsize file_size;
         if (file_stream.good())
         {
             std::cout << "locations is: " << file_location << std::endl;
             content = true;
             file_stream.seekg(0, std::ios::end);
-            std::streamsize file_size = file_stream.tellg();
+            file_size = file_stream.tellg();
             file_stream.seekg(0, std::ios::beg);
             response << "Content-Length: " << file_size << "\r\n\r\n";
         }
         else
             response << "Content-Length: 0\r\n\r\n";
+        // std::cout << "RESPONSE IS [" << response.str() << "]" << std::endl;
         if (send(client_fd, response.str().c_str(), response.str().size(), 0) < 0)
             return SRH_SEND_ERROR;
         if (content)
         {
-            if (sendFile(client_fd, file_stream) != SRH_OK)
+            if (sendFile(client_fd, file_stream, file_size) != SRH_OK)
                 return SRH_SEND_ERROR;
         }
     }
@@ -336,6 +354,8 @@ std::string ServerResponseHandler::getContentType(const std::string& file_path)
         return "image/svg+xml";
     if (extension == ".txt")
         return "text/plain";
+    if (extension == ".php")
+        return ".php";
     return "application/octet-stream"; // Default for unknown types
 }
 
@@ -374,11 +394,12 @@ e_server_request_return ServerResponseHandler::sendChunkedResponse(int client_fd
  * @return SRH_OK when done,
  * @return SRH_SEND_ERROR when send() fails
  */
-e_server_request_return ServerResponseHandler::sendFile(int client_fd, std::ifstream& file_stream)
+e_server_request_return ServerResponseHandler::sendFile(int client_fd, std::ifstream& file_stream, std::streamsize size)
 {
-    char buffer[BUFFER_SIZE];
-    while(file_stream.read(buffer, BUFFER_SIZE) || file_stream.gcount() > 0)
+    char buffer[BUFFER_SIZE] = {0};
+    while(file_stream.read(buffer, size) || file_stream.gcount() > 0)
     {
+        // std::cout << buffer;
         if (send(client_fd, buffer, file_stream.gcount(), MSG_NOSIGNAL) < 0)
             return SRH_SEND_ERROR;
     }
@@ -395,7 +416,7 @@ std::vector<std::string> ServerResponseHandler::sourceChunker(std::string& sourc
 {
     char delimiter = '/';
     std::vector<std::string> result;
-    std::string token;
+    std::string token = "";
     if (source == "/")
     {
         result.push_back("/");
@@ -427,7 +448,7 @@ std::vector<std::string> ServerResponseHandler::sourceChunker(std::string& sourc
  */
 void ServerResponseHandler::logMsg(const char* msg, int fd)
 {
-    std::string file;
+    std::string file = "";
     if (fd == stdout_pipe_[0])
         file = STANDARD_LOG_FILE;
     else
@@ -444,6 +465,68 @@ void ServerResponseHandler::logMsg(const char* msg, int fd)
 }
 
 /**
+ * @brief Handle CGI request processing
+ *
+ * @param client_fd the file descriptor of the client
+ * @param client_data the data of the client from the request
+ * @param location location info used for CGI configuration
+ * @param script_path path to the CGI script
+ * @return SRH_OK when done,
+ * @return SRH_CGI_ERROR if CGI processing fails
+ */
+e_server_request_return ServerResponseHandler::handleCGI(
+    int client_fd,
+    const s_client_data& client_data,
+    const Location& location,
+    const std::string& script_path)
+{
+    try {
+        CGIHandler handler(location);
+        
+        // Extract query string if present
+        std::string query_string;
+        size_t query_pos = client_data.request_source.find('?');
+        if (query_pos != std::string::npos) {
+            query_string = client_data.request_source.substr(query_pos + 1);
+        }
+
+        //std::cout << "IN HANDLE CGI REQIEST_BODY IS [" << client_data.request_body << "]" << std::endl;
+
+        // Execute CGI script
+        auto [status_code, response] = handler.handleRequest(
+            script_path,
+            client_data.request_method,
+            client_data.request_body,
+            query_string,
+            "localhost", // Using default since we don't need specific host
+            9999        // Using default port for development
+        );
+
+        if (status_code != 0) {
+            return setupResponse(client_fd, 500, client_data);
+        }
+
+        // Format and send response with CGI output
+        std::ostringstream headers;
+        headers << "HTTP/1.1 200 OK\r\n"
+                << "Connection: close\r\n"
+                << "Content-Type: text/html\r\n"
+                << "Content-Length: " << response.length() << "\r\n\r\n"
+                << response;
+
+        if (send(client_fd, headers.str().c_str(), headers.str().length(), 0) < 0) {
+            return SRH_SEND_ERROR;
+        }
+
+        return SRH_OK;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "CGI error: " << e.what() << std::endl;
+        return setupResponse(client_fd, 500, client_data);
+    }
+}
+
+/**
  * @brief handles the response for the client if the location as a redirect/return
  * 
  * @param client_fd the file descriptor of the client
@@ -454,7 +537,6 @@ void ServerResponseHandler::logMsg(const char* msg, int fd)
  */
 e_server_request_return ServerResponseHandler::sendRedirectResponse(int client_fd, uint16_t code, std::string& location)
 {
-
     std::string status;
     if (status_codes_.find(code) != status_codes_.end())
     {

@@ -8,12 +8,12 @@ int main(int argc, char* argv[]) {
 	(void) argc;
     try {
         std::unique_ptr<Config> config = ConfigLoader::load(argv[1]);
+        // ConfigPrinter::print(std::cout, *config);
         Server server(config);
         int nr = server.setupEpoll();
-        while (nr != -2)
-            nr = server.setupEpoll();
         // ConfigPrinter::print(std::cout, *config);
-        return 0;
+        nr *= -1;
+        return nr;
     }
     catch (const ConfigParser::ParseError& e) {
         std::cerr << "Parse error: " << e.what() << "\n";

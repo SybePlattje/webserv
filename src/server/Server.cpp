@@ -292,11 +292,11 @@ int Server::listenLoop()
     epoll_event events[MAX_EVENTS];
     while (true)
     {
-        int event_count = epoll_wait(epoll_fd_, events, MAX_EVENTS, TIMEOUT_MS);
+        int event_count = epoll_wait(epoll_fd_, events, MAX_EVENTS, 0);
         for (int i = 0; i < event_count; ++i)
         {
             int nr = checkEvents(events[i]);
-            if (nr < 0)
+            if (nr == -2)
                 return nr;
         }
     }
@@ -320,6 +320,7 @@ int Server::listenLoop()
  */
 int Server::checkEvents(epoll_event event)
 {
+
     int fd = event.data.fd;
     if (fd == server_fd_) // new connection
     {
@@ -339,8 +340,7 @@ int Server::checkEvents(epoll_event event)
     }
     if (event.events & EPOLLIN) // read event
     {
-        int nr = handleReadEvents(fd, event);
-        return nr;
+        return handleReadEvents(fd, event);
     }
     else if (event.events & EPOLLOUT) // write 
     {
@@ -492,13 +492,21 @@ int Server::checkForTimeout(int fd, epoll_event& event)
 int Server::handleReadEvents(int fd, epoll_event& event)
 {
     std::string request_buffer;
+    int timer_fd = -1;
     e_reponses function_response = requestHandler_.readRequest(fd, request_buffer);
     if (function_response != E_ROK)
     {
+        request_buffer.clear();
         if (function_response == READ_HEADER_BODY_TOO_LARGE)
         {
+            timer_fd = client_timers_.at(fd);
             int return_value = responseHandler_.setupResponse(fd, 413, requestHandler_.getRequest(fd));
+            doEpollCtl(EPOLL_CTL_DEL, timer_fd, nullptr);
+            doEpollCtl(EPOLL_CTL_DEL, fd, &event);
             requestHandler_.removeNodeFromRequest(fd);
+            client_timers_.erase(fd);
+            close(fd);
+            close(timer_fd);
             return return_value;
         }
         else if (function_response == HANDLE_COUT_CERR_OUTPUT)
@@ -506,8 +514,15 @@ int Server::handleReadEvents(int fd, epoll_event& event)
             responseHandler_.handleCoutErrOutput(fd);
             return 0;
         }
+        std::cerr << "function_response is [" << function_response << "]\n";
+        timer_fd = client_timers_.at(fd);
         responseHandler_.setupResponse(fd, 400, requestHandler_.getRequest(fd));
+        doEpollCtl(EPOLL_CTL_DEL, fd, &event);
+        doEpollCtl(EPOLL_CTL_DEL, timer_fd, nullptr);
         requestHandler_.removeNodeFromRequest(fd);
+        client_timers_.erase(timer_fd);
+        close(fd);
+        close(timer_fd);
         return -1;
     }
     function_response = requestHandler_.handleClient(request_buffer, event);
@@ -518,6 +533,7 @@ int Server::handleReadEvents(int fd, epoll_event& event)
             std::cerr << "modify client in main loop failed\n";
             requestHandler_.removeNodeFromRequest(fd);
             doEpollCtl(EPOLL_CTL_DEL, fd, &event);
+            close(fd);
             return -1;
         }
         // requestHandler_.removeNodeFromRequest(fd);
