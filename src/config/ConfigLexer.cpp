@@ -54,11 +54,14 @@ Token ConfigLexer::readWhile(std::function<bool(char)> predicate, TokenType type
 }
 
 Token ConfigLexer::readIdentifier() {
+    // Basic path chars plus regex special chars
     auto isValidIdentChar = [](char c) {
-        return std::isalnum(static_cast<unsigned char>(c)) || 
-               c == '_' || c == '-' || c == '/' || c == '.' ||
-               c == '^' || c == '$' || c == '+' || c == '[' || c == ']' || 
-               c == '(' || c == ')' || c == '\\' || c == '|';
+        return std::isalnum(static_cast<unsigned char>(c)) ||   // Alphanumeric
+               c == '_' || c == '-' || c == '/' || c == '.' ||  // Basic path chars
+               c == '\\' || c == '|' ||                         // Regex escapes and alternation
+               c == '[' || c == ']' ||                         // Character classes
+               c == '(' || c == ')' ||                         // Groups
+               c == '^' || c == '$' || c == '+';              // Regex operators
     };
     return readWhile(isValidIdentChar, TokenType::IDENTIFIER);
 }
@@ -114,42 +117,39 @@ Token ConfigLexer::nextToken() {
     }
 
     Position start = current_pos_;
-    char c = current_char_;
 
-    switch (c) {
+    // Handle modifiers and special characters
+    switch (current_char_) {
         case '{': advance(); return makeToken(TokenType::LBRACE, "{", start);
         case '}': advance(); return makeToken(TokenType::RBRACE, "}", start);
         case ';': advance(); return makeToken(TokenType::SEMICOLON, ";", start);
         case '"': return readString();
-        case '=': {
-            advance();
+        case '=': // Exact match modifier
+            advance(); 
             return makeToken(TokenType::MODIFIER, "=", start);
-        }
-        case '~': {
+        case '~': // Regex modifiers
             advance();
             if (current_char_ == '*') {
                 advance();
                 return makeToken(TokenType::MODIFIER, "~*", start);
             }
             return makeToken(TokenType::MODIFIER, "~", start);
-        }
-        case '^': {
+        case '^': // Preferential prefix modifier
             advance();
             if (current_char_ == '~') {
                 advance();
                 return makeToken(TokenType::MODIFIER, "^~", start);
             }
-            return readIdentifier();
-        }
+            return readIdentifier(); // Part of regex pattern
     }
 
+    // Numbers or identifiers (including regex patterns)
     if (std::isdigit(static_cast<unsigned char>(current_char_))) {
         return readNumber();
     }
 
     if (std::isalpha(static_cast<unsigned char>(current_char_)) || 
-        current_char_ == '_' || current_char_ == '/' ||
-        current_char_ == '^' || current_char_ == '\\') {
+        current_char_ == '_' || current_char_ == '/' || current_char_ == '\\') {
         return readIdentifier();
     }
 

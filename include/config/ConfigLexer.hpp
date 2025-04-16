@@ -6,7 +6,9 @@
 #include <istream>
 #include <functional>
 
-// Position in source file
+/**
+ * @brief Position in source file
+ */
 struct Position {
     size_t line;
     size_t column;
@@ -24,7 +26,9 @@ struct Position {
     }
 };
 
-// Token types
+/**
+ * @brief Token types for configuration lexical analysis
+ */
 enum class TokenType {
     IDENTIFIER,     // Words like "server", "location", etc.
     NUMBER,         // Port numbers, sizes
@@ -37,7 +41,9 @@ enum class TokenType {
     INVALID        // Invalid token
 };
 
-// Token with precise position information
+/**
+ * @brief Token with precise position information
+ */
 struct Token {
     TokenType type;
     std::string value;
@@ -57,6 +63,9 @@ struct Token {
     }
 };
 
+/**
+ * @brief Configuration lexer for tokenizing NGINX-style config files
+ */
 class ConfigLexer {
 public:
     explicit ConfigLexer(std::istream& input)
@@ -86,20 +95,15 @@ private:
     void skipWhitespace();    // Skip whitespace characters
     void skipComment();       // Skip from # to end of line
     
-    // Generic token reading
-    Token readWhile(std::function<bool(char)> predicate, TokenType type);  // Read while predicate is true
-    
-    // Token creation methods
-    Token readIdentifier();    // Read word tokens
+    // Token reading
+    Token readWhile(std::function<bool(char)> predicate, TokenType type);
+    Token readIdentifier();   // Read identifiers (including regex patterns)
     Token readNumber();       // Read numeric tokens
-    Token readString();       // Read string literals
-    Token readModifier();     // Read location modifiers
-    Token makeToken(TokenType type, const std::string& value, const Position& start);  // Create token with positions
-    Token makeError(const std::string& message);  // Create error token at current position
-
-    // Helper methods
-    bool isModifierStart(char c) const { return c == '~' || c == '^' || c == '='; }
-    bool isValidIdentChar(char c) const;
+    Token readString();       // Read quoted strings
+    
+    // Token creation
+    Token makeToken(TokenType type, const std::string& value, const Position& start);
+    Token makeError(const std::string& message);
 };
 
 #endif
