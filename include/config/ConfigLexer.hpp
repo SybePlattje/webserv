@@ -32,6 +32,7 @@ enum class TokenType {
     LBRACE,        // {
     RBRACE,        // }
     SEMICOLON,     // ;
+    MODIFIER,      // Location modifiers (~, ~*, ^~, =)
     END_OF_FILE,   // End of input
     INVALID        // Invalid token
 };
@@ -92,8 +93,13 @@ private:
     Token readIdentifier();    // Read word tokens
     Token readNumber();       // Read numeric tokens
     Token readString();       // Read string literals
+    Token readModifier();     // Read location modifiers
     Token makeToken(TokenType type, const std::string& value, const Position& start);  // Create token with positions
     Token makeError(const std::string& message);  // Create error token at current position
+
+    // Helper methods
+    bool isModifierStart(char c) const { return c == '~' || c == '^' || c == '='; }
+    bool isValidIdentChar(char c) const;
 };
 
 #endif

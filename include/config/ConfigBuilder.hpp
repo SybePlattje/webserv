@@ -70,9 +70,16 @@ public:
     /**
      * @brief Starts a new location block configuration
      * @param path URL path for this location
+     * @param type Type of location matching (defaults to PREFIX)
      * @throws std::runtime_error if another location is currently being configured
+     * 
+     * Location types are matched in this order:
+     * 1. Exact match (=)
+     * 2. Preferential prefix (^~)
+     * 3. Regular expressions (~, ~*)
+     * 4. Prefix match (no modifier) [default]
      */
-    void startLocation(const std::string& path);
+    void startLocation(const std::string& path, Location::MatchType type = Location::MatchType::PREFIX);
 
     /**
      * @brief Sets root directory for current location

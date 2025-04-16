@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include <regex>
 
 /**
  * @brief Location block configuration for URL-specific behavior
@@ -15,6 +16,23 @@
  */
 class Location {
 public:
+    /**
+     * @brief Types of location matching
+     * 
+     * Locations are matched in this order:
+     * 1. Exact match (=)
+     * 2. Preferential prefix (^~)
+     * 3. Regular expressions (~, ~*)
+     * 4. Prefix match (no modifier) [default]
+     */
+    enum class MatchType {
+        EXACT,              ///< Exact path match (=)
+        PREFIX,            ///< Prefix match (no modifier, default)
+        PREFERENTIAL_PREFIX,///< Preferential prefix match (^~)
+        REGEX,              ///< Case-sensitive regex match (~)
+        REGEX_INSENSITIVE   ///< Case-insensitive regex match (~*)
+    };
+
     /**
      * @brief Types of return directives for response handling
      */
@@ -71,8 +89,9 @@ public:
     /**
      * @brief Creates a location block for the specified URL path
      * @param path URL path this location handles
+     * @param type Type of location matching
      */
-    explicit Location(const std::string& path);
+    Location(const std::string& path, MatchType type = MatchType::PREFIX);
     ~Location() = default;
 
     // Copy operations
@@ -84,6 +103,11 @@ public:
      * @return URL path this location handles
      */
     const std::string& getPath() const;
+
+    /**
+     * @return Type of location matching
+     */
+    MatchType getMatchType() const;
 
     /**
      * @return Root directory for this location
@@ -114,6 +138,11 @@ public:
      * @return CGI processing configuration
      */
     const CGIConfig& getCGIConfig() const;
+
+    /**
+     * @return Compiled regex pattern if this is a regex location
+     */
+    const std::regex& getRegex() const;
 
     // Status checks
     /**
@@ -148,12 +177,14 @@ private:
 
     // Member variables
     std::string path_;                              ///< URL path this location handles
+    MatchType match_type_;                          ///< Type of location matching
     std::string root_;                              ///< Root directory for serving files
     std::string index_ = "index.html";              ///< Default index file
     std::vector<std::string> allowed_methods_{"GET"}; ///< Default: GET only
     bool autoindex_ = false;                        ///< Default: directory listing off
     ReturnDirective return_directive_;              ///< Return/redirect configuration
     CGIConfig cgi_config_;                          ///< CGI processing settings
+    std::regex regex_;                              ///< Compiled regex pattern for regex locations
 
     /**
      * @brief Validates a redirect status code

@@ -55,7 +55,10 @@ Token ConfigLexer::readWhile(std::function<bool(char)> predicate, TokenType type
 
 Token ConfigLexer::readIdentifier() {
     auto isValidIdentChar = [](char c) {
-        return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-' || c == '/' || c == '.';
+        return std::isalnum(static_cast<unsigned char>(c)) || 
+               c == '_' || c == '-' || c == '/' || c == '.' ||
+               c == '^' || c == '$' || c == '+' || c == '[' || c == ']' || 
+               c == '(' || c == ')' || c == '\\' || c == '|';
     };
     return readWhile(isValidIdentChar, TokenType::IDENTIFIER);
 }
@@ -111,18 +114,42 @@ Token ConfigLexer::nextToken() {
     }
 
     Position start = current_pos_;
-    switch (current_char_) {
+    char c = current_char_;
+
+    switch (c) {
         case '{': advance(); return makeToken(TokenType::LBRACE, "{", start);
         case '}': advance(); return makeToken(TokenType::RBRACE, "}", start);
         case ';': advance(); return makeToken(TokenType::SEMICOLON, ";", start);
         case '"': return readString();
+        case '=': {
+            advance();
+            return makeToken(TokenType::MODIFIER, "=", start);
+        }
+        case '~': {
+            advance();
+            if (current_char_ == '*') {
+                advance();
+                return makeToken(TokenType::MODIFIER, "~*", start);
+            }
+            return makeToken(TokenType::MODIFIER, "~", start);
+        }
+        case '^': {
+            advance();
+            if (current_char_ == '~') {
+                advance();
+                return makeToken(TokenType::MODIFIER, "^~", start);
+            }
+            return readIdentifier();
+        }
     }
 
     if (std::isdigit(static_cast<unsigned char>(current_char_))) {
         return readNumber();
     }
 
-    if (std::isalpha(static_cast<unsigned char>(current_char_)) || current_char_ == '_' || current_char_ == '/') {
+    if (std::isalpha(static_cast<unsigned char>(current_char_)) || 
+        current_char_ == '_' || current_char_ == '/' ||
+        current_char_ == '^' || current_char_ == '\\') {
         return readIdentifier();
     }
 

@@ -83,6 +83,13 @@ private:
      */
     static void printCGIConfig(std::ostream& out, const Location::CGIConfig& cgi);
 
+    /**
+     * @brief Converts location match type to string representation
+     * @param type Location match type
+     * @return String representation of match type (=, ^~, ~, ~*, or empty for prefix)
+     */
+    static std::string getMatchTypeString(Location::MatchType type);
+
     // Constants for formatting
     static constexpr const char* INDENT = "  ";     ///< Indentation for nested items
     static constexpr const char* NEWLINE = "\n";    ///< Line ending character

@@ -56,8 +56,26 @@ void ConfigPrinter::printLocations(std::ostream& out, const Config& config) {
     }
 }
 
+std::string ConfigPrinter::getMatchTypeString(Location::MatchType type) {
+    switch (type) {
+        case Location::MatchType::EXACT:
+            return "=";
+        case Location::MatchType::PREFIX:
+            return "";  // Default, no modifier
+        case Location::MatchType::PREFERENTIAL_PREFIX:
+            return "^~";
+        case Location::MatchType::REGEX:
+            return "~";
+        case Location::MatchType::REGEX_INSENSITIVE:
+            return "~*";
+        default:
+            return "unknown";
+    }
+}
+
 void ConfigPrinter::printLocation(std::ostream& out, const Location& location) {
-    out << "Path: " << location.getPath() << NEWLINE;
+    std::string modifier = getMatchTypeString(location.getMatchType());
+    out << "Location: " << (modifier.empty() ? "" : modifier + " ") << location.getPath() << NEWLINE;
     
     if (!location.getRoot().empty()) {
         out << INDENT << "Root: " << location.getRoot() << NEWLINE;
@@ -77,6 +95,11 @@ void ConfigPrinter::printLocation(std::ostream& out, const Location& location) {
 
     if (location.hasCGI()) {
         printCGIConfig(out, location.getCGIConfig());
+    }
+
+    if (location.getMatchType() == Location::MatchType::REGEX || 
+        location.getMatchType() == Location::MatchType::REGEX_INSENSITIVE) {
+        out << INDENT << "Pattern: " << location.getPath() << NEWLINE;
     }
 }
 

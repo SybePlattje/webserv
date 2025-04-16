@@ -140,8 +140,27 @@ void ConfigParser::parseServerBlockContent(ConfigBuilder& builder) {
 }
 
 void ConfigParser::parseLocationBlock(ConfigBuilder& builder) {
-    std::string path = expectIdentifier("Expected location path");
-    builder.startLocation(path);
+    Location::MatchType match_type = Location::MatchType::PREFIX; // Default to prefix match
+    std::string path;
+
+    // Check for location match modifiers
+    if (current_token_.type == TokenType::MODIFIER) {
+        if (current_token_.value == "=") {
+            match_type = Location::MatchType::EXACT;
+        } else if (current_token_.value == "^~") {
+            match_type = Location::MatchType::PREFERENTIAL_PREFIX;
+        } else if (current_token_.value == "~") {
+            match_type = Location::MatchType::REGEX;
+        } else if (current_token_.value == "~*") {
+            match_type = Location::MatchType::REGEX_INSENSITIVE;
+        } else {
+            throw ParseError("Invalid location modifier: " + current_token_.value, current_token_);
+        }
+        advance();
+    }
+
+    path = expectIdentifier("Expected location path");
+    builder.startLocation(path, match_type);
 
     expect(TokenType::LBRACE, "Expected '{' after location path");
 

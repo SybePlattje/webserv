@@ -32,8 +32,8 @@ ConfigBuilder& ConfigBuilder::addErrorPage(uint16_t code, const std::string& pag
     return *this;
 }
 
-void ConfigBuilder::startLocation(const std::string& path) {
-    current_location_ = std::make_shared<Location>(path);
+void ConfigBuilder::startLocation(const std::string& path, Location::MatchType type) {
+    current_location_ = std::make_shared<Location>(path, type);
 }
 
 void ConfigBuilder::setLocationRoot(const std::string& root) {

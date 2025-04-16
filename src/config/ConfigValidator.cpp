@@ -160,7 +160,11 @@ void ConfigValidator::validateLocations(const std::vector<std::shared_ptr<Locati
 }
 
 void ConfigValidator::validateLocation(const Location& location) {
-    validatePath(location.getPath(), "location path");
+    // Skip path validation for regex locations
+    if (location.getMatchType() != Location::MatchType::REGEX &&
+        location.getMatchType() != Location::MatchType::REGEX_INSENSITIVE) {
+        validatePath(location.getPath(), "location path");
+    }
     
     if (!location.getRoot().empty()) {
         validatePath(location.getRoot(), "location root");
