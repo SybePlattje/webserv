@@ -1,6 +1,6 @@
 #include "Config.hpp"
 
-ConfigBuilder::ConfigBuilder() : config_(new Config()) {}
+ConfigBuilder::ConfigBuilder() : config_(std::make_shared<Config>()) {}
 
 ConfigBuilder& ConfigBuilder::setPort(uint16_t port) {
     config_->port_ = port;
@@ -91,9 +91,9 @@ void ConfigBuilder::endLocation() {
     }
 }
 
-std::unique_ptr<Config> ConfigBuilder::build() {
+std::shared_ptr<Config> ConfigBuilder::build() {
     if (current_location_) {
         endLocation(); // Ensure any in-progress location is added
     }
-    return std::move(config_);
+    return config_;
 }

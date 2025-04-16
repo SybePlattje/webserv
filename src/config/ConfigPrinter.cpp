@@ -1,6 +1,6 @@
 #include "Config.hpp"
 
-void ConfigPrinter::printConfigs(std::ostream& out, const std::vector<std::unique_ptr<Config>>& configs) {
+void ConfigPrinter::printConfigs(std::ostream& out, const std::vector<std::shared_ptr<Config>>& configs) {
     out << "Configuration loaded successfully with " << configs.size() << " server blocks:" << NEWLINE << NEWLINE;
     
     for (size_t i = 0; i < configs.size(); ++i) {

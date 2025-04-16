@@ -22,7 +22,7 @@ public:
      * @param out Output stream to write to
      * @param configs Vector of configurations to print
      */
-    static void printConfigs(std::ostream& out, const std::vector<std::unique_ptr<Config>>& configs);
+    static void printConfigs(std::ostream& out, const std::vector<std::shared_ptr<Config>>& configs);
 
     /**
      * @brief Prints a single server configuration to output stream

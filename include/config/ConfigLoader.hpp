@@ -24,11 +24,11 @@ public:
      * provides appropriate error messages.
      *
      * @param path Path to the configuration file
-     * @return Vector of unique pointers to the parsed Config objects, one for each server block
+     * @return Vector of shared pointers to the parsed Config objects, one for each server block
      * @throws std::runtime_error if file cannot be opened or read
      * @throws ConfigParser::ParseError if configuration syntax is invalid
      */
-    static std::vector<std::unique_ptr<Config>> load(const char* path);
+    static std::vector<std::shared_ptr<Config>> load(const char* path);
 
 private:
     ConfigLoader() = delete;  // Static class - no instances allowed

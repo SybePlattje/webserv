@@ -1,6 +1,6 @@
 #include "Config.hpp"
 
-std::vector<std::unique_ptr<Config>> ConfigParser::parse(std::istream& input) {
+std::vector<std::shared_ptr<Config>> ConfigParser::parse(std::istream& input) {
     ConfigLexer lexer(input);
     ConfigParser parser(lexer);
     return parser.parseConfigs();
@@ -94,8 +94,8 @@ void ConfigParser::handleDirective(const std::string& directive,
     expectSemicolon();
 }
 
-std::vector<std::unique_ptr<Config>> ConfigParser::parseConfigs() {
-    std::vector<std::unique_ptr<Config>> configs;
+std::vector<std::shared_ptr<Config>> ConfigParser::parseConfigs() {
+    std::vector<std::shared_ptr<Config>> configs;
     advance();
 
     while (current_token_.type != TokenType::END_OF_FILE) {
@@ -114,7 +114,7 @@ std::vector<std::unique_ptr<Config>> ConfigParser::parseConfigs() {
     return configs;
 }
 
-std::unique_ptr<Config> ConfigParser::parseServerBlock() {
+std::shared_ptr<Config> ConfigParser::parseServerBlock() {
     ConfigBuilder builder;
     parseServerBlockContent(builder);
     return builder.build();

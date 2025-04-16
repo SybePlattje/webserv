@@ -147,9 +147,9 @@ public:
 
     /**
      * @brief Builds and returns the completed configuration
-     * @return Unique pointer to the built Config object
+     * @return Shared pointer to the built Config object
      */
-    std::unique_ptr<Config> build();
+    std::shared_ptr<Config> build();
 
 private:
     /**
@@ -163,7 +163,7 @@ private:
         }
     }
 
-    std::unique_ptr<Config> config_;             ///< Configuration being built
+    std::shared_ptr<Config> config_;             ///< Configuration being built
     std::shared_ptr<Location> current_location_; ///< Location currently being configured
 };
 

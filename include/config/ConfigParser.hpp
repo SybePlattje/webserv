@@ -51,10 +51,10 @@ public:
     /**
      * @brief Parses configuration from an input stream
      * @param input Stream containing configuration data
-     * @return Vector of unique pointers to parsed Config objects, one for each server block
+     * @return Vector of shared pointers to parsed Config objects, one for each server block
      * @throws ParseError on syntax or semantic errors
      */
-    static std::vector<std::unique_ptr<Config>> parse(std::istream& input);
+    static std::vector<std::shared_ptr<Config>> parse(std::istream& input);
 
 private:
     /**
@@ -68,8 +68,8 @@ private:
     using ValueValidator = std::function<void(const Token&)>;
 
     // Main parsing methods
-    std::vector<std::unique_ptr<Config>> parseConfigs();
-    std::unique_ptr<Config> parseServerBlock();
+    std::vector<std::shared_ptr<Config>> parseConfigs();
+    std::shared_ptr<Config> parseServerBlock();
     void parseServerBlockContent(ConfigBuilder& builder);
 
     /**
