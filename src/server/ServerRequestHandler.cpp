@@ -6,6 +6,18 @@
 #include <sys/socket.h>
 #include <sstream>
 
+s_client_data::s_client_data(std::shared_ptr<Config>& conf) : config_(conf) {}
+
+s_client_data::s_client_data(const s_client_data& other) : config_(other.config_)
+{
+    request_type = other.request_type;
+    request_header = other.request_header;
+    request_body = other.request_body;
+    request_method = other.request_method;
+    request_source = other.request_source;
+    chunked = other.chunked;
+}
+
 ServerRequestHandler::ServerRequestHandler(uint64_t client_body_size) 
 {
     max_size_ = client_body_size;
@@ -17,9 +29,11 @@ ServerRequestHandler::ServerRequestHandler(uint64_t client_body_size)
 
 ServerRequestHandler::~ServerRequestHandler() {};
 
-s_client_data& ServerRequestHandler::getRequest(int fd)
+s_client_data* ServerRequestHandler::getRequest(int fd)
 {
-    return request_[fd];
+    if (request_.find(fd) != request_.end())
+        return &request_.at(fd);
+    return nullptr;
 }
 
 void ServerRequestHandler::removeNodeFromRequest(int fd)
@@ -38,6 +52,15 @@ void ServerRequestHandler::setStderrPipe(int stderr_pipe[])
     stderr_pipe_[1] = stderr_pipe[1];
 }
 
+void ServerRequestHandler::setConfigForClient(std::shared_ptr<Config>& conf, int client_fd)
+{
+    if (request_.find(client_fd) == request_.end())
+    {
+        s_client_data node(conf);
+        request_.emplace(client_fd, node);
+    }
+}
+
 /**
  * @brief reads the request comming from the client
  * 
@@ -53,13 +76,6 @@ e_reponses ServerRequestHandler::readRequest(int client_fd, std::string& request
 {
     char buffer[BUFFER_SIZE] = {0};
     ssize_t bytes_recieved = 0;
-    if (request_.find(client_fd) == request_.end())
-    {
-        s_client_data node;
-        node.chunked = false;
-        request_.insert({client_fd, node});
-    }
-
     if (client_fd == stdout_pipe_[0] || client_fd == stderr_pipe_[0])
         return HANDLE_COUT_CERR_OUTPUT;
     while ((bytes_recieved = recv(client_fd, buffer, BUFFER_SIZE, 0)) > 0)
@@ -109,7 +125,7 @@ e_reponses ServerRequestHandler::handleClient(std::string& request_buffer, epoll
  */
 e_reponses ServerRequestHandler::readHeader(std::string& request_buffer, size_t header_end, int client_fd, char buffer[])
 {
-    // std::cout << request_buffer << std::endl;
+    std::cout << request_buffer << std::endl;
 
     if (setMethodSourceHttpVersion(request_buffer, client_fd) == CLIENT_REQUEST_DATA_EMPTY)
         return CLIENT_REQUEST_DATA_EMPTY;
@@ -118,7 +134,7 @@ e_reponses ServerRequestHandler::readHeader(std::string& request_buffer, size_t 
         return NO_CONTENT_TYPE;
 
     std::string headers = request_buffer.substr(0, header_end);
-    getRequest(client_fd).request_header = headers;
+    getRequest(client_fd)->request_header = headers;
     size_t body_start = header_end + 4; // Skip \r\n\r\n
 
     // check if it's chunked transfer encoding
@@ -156,7 +172,7 @@ e_reponses ServerRequestHandler::setContentTypeRequest(std::string& request_buff
     {
         request_type_pos += 14; // skip past "Content-Type: "
         size_t end = request_buffer.substr(request_type_pos, header_end - request_type_pos).length();
-        getRequest(client_fd).request_type = request_buffer.substr(request_type_pos, end);
+        getRequest(client_fd)->request_type = request_buffer.substr(request_type_pos, end);
         return E_ROK;
     }
     return NO_CONTENT_TYPE;
@@ -172,7 +188,7 @@ e_reponses ServerRequestHandler::setContentTypeRequest(std::string& request_buff
 e_reponses ServerRequestHandler::setMethodSourceHttpVersion(std::string& request_buffer, int client_fd)
 {
     std::istringstream stream(request_buffer);
-    stream >> getRequest(client_fd).request_method >> getRequest(client_fd).request_source >> getRequest(client_fd).http_version;
+    stream >> getRequest(client_fd)->request_method >> getRequest(client_fd)->request_source >> getRequest(client_fd)->http_version;
     return E_ROK;
 }
 
@@ -217,8 +233,8 @@ e_reponses ServerRequestHandler::handleChunkedRequest(size_t body_start, std::st
         decoded_body.append(chunk_data);
         pos += chunk_size + 2; // move past \r\n
     }
-    getRequest(client_fd).request_body = decoded_body;
-    getRequest(client_fd).chunked = true;
+    getRequest(client_fd)->request_body = decoded_body;
+    getRequest(client_fd)->chunked = true;
     return E_ROK;
 }
 
@@ -296,7 +312,7 @@ e_reponses ServerRequestHandler::handleContentLength(size_t size, std::string& r
         else
             break;
     }
-    getRequest(client_fd).request_body = request_buffer.substr(body_start, size);
+    getRequest(client_fd)->request_body = request_buffer.substr(body_start, size);
     // std::cout << "request body at and is [" << getRequest(client_fd).request_body << "]" << std::endl;
     return E_ROK;
 }

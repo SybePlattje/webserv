@@ -6,6 +6,7 @@
 # include <string>
 # include <array>
 # include <sys/epoll.h>
+# include "../Config.hpp"
 
 #define BUFFER_SIZE 1024 * 1024
 
@@ -25,6 +26,8 @@ enum e_reponses {
 
 struct s_client_data
 {
+    s_client_data(std::shared_ptr<Config>& conf);
+    s_client_data(const s_client_data& other);
     std::string request_type;
     std::string request_header;
     std::string request_body;
@@ -32,6 +35,7 @@ struct s_client_data
     std::string request_source;
     std::string http_version;
     bool chunked = false;
+    std::shared_ptr<Config>& config_;
 };
 
 class ServerRequestHandler
@@ -39,12 +43,13 @@ class ServerRequestHandler
     public:
         ServerRequestHandler(uint64_t client_body_size);
         ~ServerRequestHandler();
-        s_client_data& getRequest(int fd);
+        s_client_data* getRequest(int fd);
         void removeNodeFromRequest(int fd);
         e_reponses readRequest(int client_fd, std::string& request_buffer);
         e_reponses handleClient(std::string& request_buffer, epoll_event& event);
         void setStdoutPipe(int out_pipe[]);
         void setStderrPipe(int err_pipe[]);
+        void setConfigForClient(std::shared_ptr<Config>& conf, int client_fd);
     private:
         std::unordered_map<int, s_client_data> request_;
         uint64_t max_size_;

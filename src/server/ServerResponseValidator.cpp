@@ -256,7 +256,7 @@ void ServerResponseValidator::setPossibleLocation(size_t token_size, std::vector
     }
     if (token_size == 1 && token_location.at(0) == "/")
     {
-        for (auto location : locations_)
+        for (std::shared_ptr<Location> location : locations_)
         {
             if (location && location->getPath() == "/")
                 found_location.emplace(0, location);

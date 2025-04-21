@@ -7,10 +7,15 @@ int main(int argc, char* argv[]) {
     ::signal(SIGPIPE, SIG_IGN);
     (void) argc;
     try {
-        auto configs = ConfigLoader::load(argv[1]);
-        ConfigPrinter::printConfigs(std::cout, configs);
-        // Server server(config);
-        // int nr = server.setupEpoll();
+        std::vector<std::shared_ptr<Config>> configs = ConfigLoader::load(argv[1]);
+        Server server(configs);
+        int nr = server.setupEpoll();
+        if (nr != 0)
+            return nr * -1;
+        nr = server.serverLoop();
+        return nr * -1;
+
+        //ConfigPrinter::printConfigs(std::cout, configs);
         // ConfigPrinter::print(std::cout, *config);
         // nr *= -1;
         // return nr;

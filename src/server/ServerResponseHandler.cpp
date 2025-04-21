@@ -37,7 +37,7 @@ void ServerResponseHandler::setStdoutPipe(int stdout_pipe[])
  * @return RVR_OK if all info is good and response has been send,
  * @return SRH_INCORRECT_HTTP_VERSION if the HTTPVersion in the request is not supported
  */
-e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_client_data client_data, std::vector<std::shared_ptr<Location>> locations)
+e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_client_data& client_data, std::vector<std::shared_ptr<Location>> locations)
 {
     std::string file_path = "";
     std::vector<std::shared_ptr<Location>>::const_iterator location_it = locations.begin();
@@ -111,7 +111,7 @@ e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_c
  * @param location the location where the page is located (can be empty)
  * @return SRH_OK when done
  */
-e_server_request_return ServerResponseHandler::setupResponse(int client_fd, uint16_t code, s_client_data data, std::string location)
+e_server_request_return ServerResponseHandler::setupResponse(int client_fd, uint16_t code, const s_client_data& data, std::string location)
 {
     size_t dot_pos = 0;
     // handle redirects
@@ -192,7 +192,7 @@ void ServerResponseHandler::handleCoutErrOutput(int fd)
  * @param data the request data from the user
  * @return SRH_OK when done
  */
-e_server_request_return ServerResponseHandler::handleReturns(int client_fd, e_responeValReturn nr, s_client_data data, std::vector<std::shared_ptr<Location>>::const_iterator& location_it)
+e_server_request_return ServerResponseHandler::handleReturns(int client_fd, e_responeValReturn nr, s_client_data& data, std::vector<std::shared_ptr<Location>>::const_iterator& location_it)
 {
     switch (nr)
     {
@@ -265,7 +265,7 @@ e_server_request_return ServerResponseHandler::buildDirectoryResponse(const std:
  * @return SRH_SEND_ERROR when send() failes,
  * @return SRH_FSTREAM_ERROR when file stream failed to open 
  */
-e_server_request_return ServerResponseHandler::sendResponse(int client_fd, const std::string& status, const std::string& file_location, s_client_data& data, bool d_list)
+e_server_request_return ServerResponseHandler::sendResponse(int client_fd, const std::string& status, const std::string& file_location, const s_client_data& data, bool d_list)
 {
     bool content = false;
     std::ostringstream response;
@@ -399,7 +399,6 @@ e_server_request_return ServerResponseHandler::sendFile(int client_fd, std::ifst
     char buffer[BUFFER_SIZE] = {0};
     while(file_stream.read(buffer, size) || file_stream.gcount() > 0)
     {
-        // std::cout << buffer;
         if (send(client_fd, buffer, file_stream.gcount(), MSG_NOSIGNAL) < 0)
             return SRH_SEND_ERROR;
     }
