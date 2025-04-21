@@ -300,7 +300,12 @@ e_server_request_return ServerResponseHandler::sendResponse(int client_fd, const
     std::ifstream file_stream("." + file_location, std::ios::binary);
     if (!file_stream.is_open())
     {
+        std::string content = status;
+        response << "Content-Length: " << content.size() << "\r\n\r\n";
+        response << content;
         std::cerr << "file_stream open: " << file_location << std::endl;
+        if (send(client_fd, response.str().c_str(), response.str().size(), 0) < 0)
+            return SRH_SEND_ERROR;
         return SRH_FSTREAM_ERROR;
     }
 
