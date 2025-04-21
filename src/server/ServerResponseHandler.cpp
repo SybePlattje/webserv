@@ -48,7 +48,21 @@ e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_c
     std::vector<std::string> token_location = sourceChunker(client_data.request_source);
     e_responeValReturn nr = SRV_.checkLocations(token_location, file_path, location_it);
     if (nr != RVR_OK)
-        return handleReturns(client_fd, nr, client_data, location_it);
+    {
+        if (nr != RVR_IS_REGEX)
+            return handleReturns(client_fd, nr, client_data, location_it);
+        else
+        {
+            file_path = client_data.config_.get()->getRoot() + location_it->get()->getRoot() + client_data.request_source;
+            std::cout << "file_path is [" << file_path << "]" << std::endl;
+            std::cout << "root of config is [" << client_data.config_.get()->getRoot() << "]" << std::endl;
+            if (location_it == client_data.config_.get()->getLocations().begin())
+                std::cout << "location is begin" << std::endl;
+            else
+                std::cout << "root of location is [" << location_it->get()->getPath() << "]" << std::endl;
+            std::cout << "request_source is [" << client_data.request_source << "]" << std::endl;
+        }
+    }
 
     nr = SRV_.checkAllowedMethods(location_it, client_data.request_method);
     if (nr != RVR_OK)

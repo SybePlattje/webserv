@@ -20,6 +20,7 @@ enum e_responeValReturn
     RVR_FOUND_AT_ROOT,
     RVR_SHOW_DIRECTORY,
     RVR_DIR_FAILED,
+    RVR_IS_REGEX,
 };
 
 class ServerResponseValidator
@@ -41,6 +42,7 @@ class ServerResponseValidator
 
         void setPossibleLocation(size_t token_size, std::vector<std::string>& token_location, std::map<size_t, std::shared_ptr<Location>>& found_location);
         bool fileExists(const std::string& path);
+        void setPossibleRegexLocation(std::vector<std::string>& token_location, std::map<size_t, std::shared_ptr<Location>>& found_location);
 };
 
 #endif

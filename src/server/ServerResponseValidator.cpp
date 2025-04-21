@@ -3,6 +3,8 @@
 #include <iostream>
 #include <sys/stat.h>
 #include <filesystem>
+#include <regex>
+
 
 ServerResponseValidator::ServerResponseValidator(const std::vector<std::shared_ptr<Location>>& locations, const std::string& root) : locations_(locations), root_(root) {};
 
@@ -94,6 +96,15 @@ e_responeValReturn ServerResponseValidator::checkLocations(std::vector<std::stri
                file_path = root_ + "/" + location_it->get()->getIndex();
             else
                 file_path = root_ + location_it->get()->getRoot() + "/" + location_it->get()->getIndex();
+        }
+    }
+    else
+    {
+        setPossibleRegexLocation(token_location, found_location);
+        if (!found_location.empty())
+        {
+            location_it = std::next(locations_.begin(), found_location.begin()->first);
+            return RVR_IS_REGEX;
         }
     }
     if (file_path.empty())
@@ -249,11 +260,11 @@ const std::string& ServerResponseValidator::getRoot() const
  */
 void ServerResponseValidator::setPossibleLocation(size_t token_size, std::vector<std::string>& token_location, std::map<size_t, std::shared_ptr<Location>>& found_location)
 {
-    if (token_size > 0 && token_location.at(token_size - 1).find(".") != std::string::npos)
-    {
-        token_location.insert(token_location.begin(), token_location.at(token_size - 1));
-        ++token_size;
-    }
+    // if (token_size > 0 && token_location.at(token_size - 1).find(".") != std::string::npos)
+    // {
+    //     token_location.insert(token_location.begin(), token_location.at(token_size - 1));
+    //     ++token_size;
+    // }
     if (token_size == 1 && token_location.at(0) == "/")
     {
         for (std::shared_ptr<Location> location : locations_)
@@ -293,4 +304,24 @@ bool ServerResponseValidator::fileExists(const std::string& path)
 {
     struct stat buffer;
     return stat(path.c_str(), &buffer) == 0 && S_ISREG(buffer.st_mode);
+}
+
+void ServerResponseValidator::setPossibleRegexLocation(std::vector<std::string>& token_location, std::map<size_t, std::shared_ptr<Location>>& found_location)
+{
+    auto it = locations_.begin();
+    auto ite = locations_.end();
+    std::string source;
+    for (std::string part : token_location)
+        source += part;
+    size_t i = 0;
+    while (it != ite)
+    {
+        if (it->get()->getMatchType() != Location::MatchType::PREFIX)
+        {
+            if (std::regex_search(source, it->get()->getRegex()))
+                found_location.emplace(i, *it);
+        }
+        ++it;
+        ++i;
+    }
 }
