@@ -377,6 +377,8 @@ std::string ServerResponseHandler::getContentType(const std::string& file_path)
         return ".php";
     if (extension == ".py")
         return ".py";
+    if (extension == ".sh")
+        return ".sh";
     return "application/octet-stream"; // Default for unknown types
 }
 
@@ -522,8 +524,8 @@ e_server_request_return ServerResponseHandler::handleCGI(
             client_data.request_method,
             client_data.request_body,
             query_string,
-            "localhost", // Using default since we don't need specific host
-            9999        // Using default port for development
+            client_data.config_.get()->getServerName(),
+            client_data.config_.get()->getPort()
         );
 
         if (status_code != 0) {
