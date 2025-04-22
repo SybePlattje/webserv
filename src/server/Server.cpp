@@ -452,7 +452,7 @@ int Server::setupConnection(int server_fd, configInfo& config)
         config.requestHandler_.setConfigForClient(config.config_, client_fd);
         setNonBlocking(client_fd);
         epoll_event client_event{};
-        client_event.events = EPOLLIN | EPOLLOUT;
+        client_event.events = EPOLLIN;
         client_event.data.fd = client_fd;
         int nr = doEpollCtl(EPOLL_CTL_ADD, client_fd, &client_event);
         if (nr != 0)
