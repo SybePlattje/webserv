@@ -60,16 +60,13 @@ std::pair<int, std::string> CGIExecutor::execute(
     close(output_pipe_[1]);  // Close write end of output
 
     // Write request body to script if present
-    ssize_t bytes_writen = 0;
     if (!request_body.empty()) {
-        bytes_writen = write(input_pipe_[1], request_body.data(), request_body.length()) < 0;
+        if (write(input_pipe_[1], request_body.data(), request_body.length()) == -1) {
+            close(input_pipe_[1]);
+            throw std::runtime_error("Write failed: to CGI has not been successful\n");
+        }
     }
     close(input_pipe_[1]);  // Close after writing
-
-    if (bytes_writen <= 0)
-    {
-        throw std::runtime_error("Write failed: to CGI has not been successful\n");
-    }
     int status;
     waitpid(pid, &status, 0);
     int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;

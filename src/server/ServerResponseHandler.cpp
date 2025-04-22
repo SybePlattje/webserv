@@ -375,6 +375,8 @@ std::string ServerResponseHandler::getContentType(const std::string& file_path)
         return "text/plain";
     if (extension == ".php")
         return ".php";
+    if (extension == ".py")
+        return ".py";
     return "application/octet-stream"; // Default for unknown types
 }
 
