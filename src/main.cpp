@@ -14,11 +14,6 @@ int main(int argc, char* argv[]) {
             return nr * -1;
         nr = server.serverLoop();
         return nr * -1;
-
-        //ConfigPrinter::printConfigs(std::cout, configs);
-        // ConfigPrinter::print(std::cout, *config);
-        // nr *= -1;
-        // return nr;
     }
     catch (const ConfigParser::ParseError& e) {
         std::cerr << "Parse error: " << e.what() << "\n";
