@@ -35,9 +35,9 @@ endif
 # Targets
 .PHONY: all mandatory bonus clean fclean re directories debug rebug fsan resan message
 
-all: $(NAME)
+all: directories $(NAME)
 
-$(NAME): directories $(OBJECTS)
+$(NAME): $(OBJECTS)
 	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $(OBJECTS)
 	@$(MAKE) message EXECUTABLE=$@
 
