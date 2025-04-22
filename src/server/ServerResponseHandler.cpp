@@ -290,7 +290,7 @@ e_server_request_return ServerResponseHandler::sendResponse(int client_fd, const
         response << "Content-Type: " << getContentType("x.html") << "\r\n";
         response << "Content-Length: " << file_location.size() << "\r\n\r\n";
         response << file_location;
-        if (send(client_fd, response.str().c_str(), response.str().size(), 0) < 0)
+        if (send(client_fd, response.str().c_str(), response.str().size(), 0) <= 0)
             return SRH_SEND_ERROR;
         return SRH_OK;
     }
@@ -303,7 +303,7 @@ e_server_request_return ServerResponseHandler::sendResponse(int client_fd, const
         response << "Content-Length: " << content.size() << "\r\n\r\n";
         response << content;
         std::cerr << "file_stream open: " << file_location << std::endl;
-        if (send(client_fd, response.str().c_str(), response.str().size(), 0) < 0)
+        if (send(client_fd, response.str().c_str(), response.str().size(), 0) <= 0)
             return SRH_SEND_ERROR;
         return SRH_FSTREAM_ERROR;
     }
@@ -311,7 +311,7 @@ e_server_request_return ServerResponseHandler::sendResponse(int client_fd, const
     if (data.chunked)
     {
         response << "Transfer-Encoding: chunked\r\n\r\n";
-        if (send(client_fd, response.str().c_str(), response.str().size(), 0) < 0)
+        if (send(client_fd, response.str().c_str(), response.str().size(), 0) <= 0)
             return SRH_SEND_ERROR;
         if (sendChunkedResponse(client_fd, file_stream)!= SRH_OK)
             return SRH_SEND_ERROR;
@@ -332,7 +332,7 @@ e_server_request_return ServerResponseHandler::sendResponse(int client_fd, const
         else
             response << "Content-Length: 0\r\n\r\n";
         // std::cout << "RESPONSE IS [" << response.str() << "]" << std::endl;
-        if (send(client_fd, response.str().c_str(), response.str().size(), 0) < 0)
+        if (send(client_fd, response.str().c_str(), response.str().size(), 0) <= 0)
             return SRH_SEND_ERROR;
         if (content)
         {
@@ -393,14 +393,14 @@ e_server_request_return ServerResponseHandler::sendChunkedResponse(int client_fd
     {
         std::ostringstream chunk;
         chunk << std::hex << file_stream.gcount() << "\r\n"; // chunk size in hex
-        if (send(client_fd, chunk.str().c_str(), chunk.str().size(), 0) < 0)
+        if (send(client_fd, chunk.str().c_str(), chunk.str().size(), 0) <= 0)
             return SRH_SEND_ERROR;
-        if (send(client_fd, buffer, file_stream.gcount(), 0) < 0)
+        if (send(client_fd, buffer, file_stream.gcount(), 0) <= 0)
             return SRH_SEND_ERROR;
         if (send(client_fd, "\r\n\r\n", 2, 0) < 0)
             return SRH_SEND_ERROR;
     }
-    if (send(client_fd, "0\r\n\r\n", 5, 0) < 0)
+    if (send(client_fd, "0\r\n\r\n", 5, 0) <= 0)
         return SRH_SEND_ERROR;
     return SRH_OK;
 }
@@ -418,7 +418,7 @@ e_server_request_return ServerResponseHandler::sendFile(int client_fd, std::ifst
     char buffer[BUFFER_SIZE] = {0};
     while(file_stream.read(buffer, size) || file_stream.gcount() > 0)
     {
-        if (send(client_fd, buffer, file_stream.gcount(), MSG_NOSIGNAL) < 0)
+        if (send(client_fd, buffer, file_stream.gcount(), MSG_NOSIGNAL) <= 0)
             return SRH_SEND_ERROR;
     }
     return SRH_OK;
@@ -478,7 +478,11 @@ void ServerResponseHandler::logMsg(const char* msg, int fd)
     }
     file.insert(0,"logs/");
     int file_fd = open(file.c_str(), O_CREAT | O_APPEND | O_WRONLY, S_IRUSR | S_IWUSR);
-    write(file_fd, msg, strlen(msg));
+    if (write(file_fd, msg, strlen(msg)) <= 0)
+    {
+        close(file_fd);
+        throw std::runtime_error("Write failed: to log write has not been successful\n");
+    }
     close(file_fd);
 }
 
@@ -532,7 +536,7 @@ e_server_request_return ServerResponseHandler::handleCGI(
                 << "Content-Length: " << response.length() << "\r\n\r\n"
                 << response;
 
-        if (send(client_fd, headers.str().c_str(), headers.str().length(), 0) < 0) {
+        if (send(client_fd, headers.str().c_str(), headers.str().length(), 0) <= 0) {
             return SRH_SEND_ERROR;
         }
 
@@ -579,7 +583,7 @@ e_server_request_return ServerResponseHandler::sendRedirectResponse(int client_f
     response << "Location: " << location << "\r\n";
     response << "Content-Length: 0\r\n\r\n";
     
-    if (send(client_fd, response.str().c_str(), response.str().size(), 0) < 0)
+    if (send(client_fd, response.str().c_str(), response.str().size(), 0) <= 0)
         return SRH_SEND_ERROR;
     return SRH_OK;
 }
