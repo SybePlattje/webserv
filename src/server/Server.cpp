@@ -376,7 +376,7 @@ int Server::checkEvents(epoll_event event)
             ++it;
         }
         if (it == ite)
-            return -2;        
+            return -2;
         e_server_request_return nr = it->responseHandler_.handleResponse(fd, *(it->requestHandler_.getRequest(fd)), it->config_->getLocations());
         // TODO remove if statement for eval
         if (nr != SRH_DO_TIMEOUT && nr != SRH_OK)
@@ -452,7 +452,7 @@ int Server::setupConnection(int server_fd, configInfo& config)
         config.requestHandler_.setConfigForClient(config.config_, client_fd);
         setNonBlocking(client_fd);
         epoll_event client_event{};
-        client_event.events = EPOLLIN;
+        client_event.events = EPOLLIN | EPOLLOUT;
         client_event.data.fd = client_fd;
         int nr = doEpollCtl(EPOLL_CTL_ADD, client_fd, &client_event);
         if (nr != 0)

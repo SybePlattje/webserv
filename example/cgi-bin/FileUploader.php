@@ -1,6 +1,5 @@
 <?php
 define("FILE_UPLOAD_LOCATION", "upload/"); // key, value
-define("MAX_FILE_SIZE", 10 * 1024 * 1024); // 10 MB limit
 // $raw_data = $argv[1];
 
 $raw_data = '';
@@ -11,11 +10,6 @@ while (($chunk = fread(STDIN, 8192)) != false && $chunk !== '')
 if (empty($raw_data))
 {
     fwrite(STDERR, "No data recieved.\n");
-    exit(1);
-}
-if (strlen($raw_data) > MAX_FILE_SIZE)
-{
-    fwrite(STDERR, "File size exceeds limit.\n");
     exit(1);
 }
 $parsed_data = parseMultipart($raw_data);

@@ -101,9 +101,9 @@ e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_c
                     return setupResponse(client_fd, 404, client_data);
                 else if (nr == RVR_NO_FILE_PERMISSION)
                     return setupResponse(client_fd, 403, client_data);
-            }
+                }
             std::string body = "";
-            e_server_request_return response = buildDirectoryResponse(file_path, body);
+            e_server_request_return response = buildDirectoryResponse(SRV_.getRoot().substr(1) + location_it->get()->getPath(), body);
             if (response != SRH_OK)
                 return handleReturns(client_fd, RVR_DIR_FAILED, client_data, location_it);
             return sendResponse(client_fd, "200 Ok", body, client_data, true);
@@ -130,10 +130,10 @@ e_server_request_return ServerResponseHandler::setupResponse(int client_fd, uint
     size_t dot_pos = 0;
     // handle redirects
     if (!location.empty())
-    {
+    {  
         dot_pos = location.find(".", 0);
         if (dot_pos == std::string::npos)
-            sendRedirectResponse(client_fd, code, location);
+            return sendRedirectResponse(client_fd, code, location);
     }
     std::string status_text = "";
     if (status_codes_.find(code) != status_codes_.end())
@@ -152,8 +152,7 @@ e_server_request_return ServerResponseHandler::setupResponse(int client_fd, uint
         status_text = "500 Internal Server Error";
     if (code == 200)
     {
-        sendResponse(client_fd, status_text, location, data);
-        return SRH_OK;
+        return sendResponse(client_fd, status_text, location, data);
     }
     else
     {
@@ -163,12 +162,12 @@ e_server_request_return ServerResponseHandler::setupResponse(int client_fd, uint
             std::string fall_back = "/example/errorPages/";
             fall_back.append(std::to_string(code));
             fall_back.append(".html");
-            sendResponse(client_fd, status_text, fall_back, data);
+            return sendResponse(client_fd, status_text, fall_back, data);
         }
         else
         {
             location.insert(0UL, SRV_.getRoot());
-            sendResponse(client_fd, status_text, location + "/" + error_page->second, data);
+            return sendResponse(client_fd, status_text, location + "/" + error_page->second, data);
         }
     }
     return SRH_OK;
@@ -323,11 +322,12 @@ e_server_request_return ServerResponseHandler::sendResponse(int client_fd, const
         if (file_stream.good())
         {
             std::cout << "locations is: " << file_location << std::endl;
-            content = true;
             file_stream.seekg(0, std::ios::end);
             file_size = file_stream.tellg();
             file_stream.seekg(0, std::ios::beg);
             response << "Content-Length: " << file_size << "\r\n\r\n";
+            if (file_size > 0)
+                content = true;
         }
         else
             response << "Content-Length: 0\r\n\r\n";
