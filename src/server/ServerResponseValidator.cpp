@@ -219,7 +219,7 @@ bool ServerResponseValidator::filePermission(const std::string& path)
  */
 e_responeValReturn ServerResponseValidator::checkAutoIndexing(std::vector<std::shared_ptr<Location>>::const_iterator& location_it)
 {
-    std::string path = root_.substr(1) + location_it->get()->getPath();
+    std::string path = root_.substr(1) + location_it->get()->getRoot();
     if (!isDirectory(path))
         return RVR_NOT_FOUND;
     if (!filePermission(path))

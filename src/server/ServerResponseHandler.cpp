@@ -103,7 +103,7 @@ e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_c
                     return setupResponse(client_fd, 403, client_data);
                 }
             std::string body = "";
-            e_server_request_return response = buildDirectoryResponse(SRV_.getRoot().substr(1) + location_it->get()->getPath(), body);
+            e_server_request_return response = buildDirectoryResponse(SRV_.getRoot().substr(1) + location_it->get()->getRoot(), body);
             if (response != SRH_OK)
                 return handleReturns(client_fd, RVR_DIR_FAILED, client_data, location_it);
             return sendResponse(client_fd, "200 Ok", body, client_data, true);
