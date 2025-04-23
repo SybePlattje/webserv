@@ -5,7 +5,8 @@
 # include <sys/epoll.h>
 # include <vector>
 # include "../config/Location.hpp"
-#include "../Config.hpp"
+# include "../Config.hpp"
+# include "ServerRequestHandler.hpp"
 
 enum e_responeValReturn
 {
@@ -29,20 +30,20 @@ class ServerResponseValidator
         ServerResponseValidator(const std::vector<std::shared_ptr<Location>>& locations, const std::string& root);
         ~ServerResponseValidator();
         bool checkHTTPVersion(std::string& http_version);
-        e_responeValReturn checkLocations(std::vector<std::string>& token_location, std::string& file_path, std::vector<std::shared_ptr<Location>>::const_iterator& location_it);
+        e_responeValReturn checkLocations(std::vector<std::string>& token_location, std::string& file_path, std::vector<std::shared_ptr<Location>>::const_iterator& location_it, s_client_data& client_data);
         e_responeValReturn checkAllowedMethods(std::vector<std::shared_ptr<Location>>::const_iterator& location_it, std::string& method);
         e_responeValReturn checkFile(std::string& file_path, std::vector<std::shared_ptr<Location>>::const_iterator& location_it);
         e_responeValReturn checkAutoIndexing(std::vector<std::shared_ptr<Location>>::const_iterator& location_it);
         bool isDirectory(std::string& path);
         bool filePermission(const std::string& path);
         const std::string& getRoot() const;
+        bool fileExists(const std::string& path);
     private:
         const std::vector<std::shared_ptr<Location>>& locations_;
         const std::string& root_;
 
         void setPossibleLocation(size_t token_size, std::vector<std::string>& token_location, std::map<size_t, std::shared_ptr<Location>>& found_location);
-        bool fileExists(const std::string& path);
-        void setPossibleRegexLocation(std::vector<std::string>& token_location, std::map<size_t, std::shared_ptr<Location>>& found_location);
+        void setPossibleRegexLocation(std::map<size_t, std::shared_ptr<Location>>& found_location, s_client_data& client_data);
 };
 
 #endif

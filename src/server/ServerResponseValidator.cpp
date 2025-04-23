@@ -35,7 +35,7 @@ bool ServerResponseValidator::checkHTTPVersion(std::string& http_version)
  * @return RVR_NOT_FOUND if no location matches the request location
  * @return RVR_RETURN if a redirect location was defined before the precise location
  */
-e_responeValReturn ServerResponseValidator::checkLocations(std::vector<std::string>& token_location, std::string& file_path, std::vector<std::shared_ptr<Location>>::const_iterator& location_it)
+e_responeValReturn ServerResponseValidator::checkLocations(std::vector<std::string>& token_location, std::string& file_path, std::vector<std::shared_ptr<Location>>::const_iterator& location_it, s_client_data& client_data)
 {
     std::map<size_t, std::shared_ptr<Location>> found_location;
     size_t token_size = token_location.size();
@@ -100,7 +100,7 @@ e_responeValReturn ServerResponseValidator::checkLocations(std::vector<std::stri
     }
     else
     {
-        setPossibleRegexLocation(token_location, found_location);
+        setPossibleRegexLocation(found_location, client_data);
         if (!found_location.empty())
         {
             location_it = std::next(locations_.begin(), found_location.begin()->first);
@@ -300,19 +300,23 @@ bool ServerResponseValidator::fileExists(const std::string& path)
     return stat(path.c_str(), &buffer) == 0 && S_ISREG(buffer.st_mode);
 }
 
-void ServerResponseValidator::setPossibleRegexLocation(std::vector<std::string>& token_location, std::map<size_t, std::shared_ptr<Location>>& found_location)
+void ServerResponseValidator::setPossibleRegexLocation(std::map<size_t, std::shared_ptr<Location>>& found_location, s_client_data& client_data)
 {
     auto it = locations_.begin();
     auto ite = locations_.end();
     std::string source;
-    for (std::string part : token_location)
-        source += part;
+
+    source = client_data.request_source;
+    // for (std::string part : token_location)
+    //     source += part + "/";
+    // source = source.substr(0, source.size() - 1);
     size_t i = 0;
     while (it != ite)
     {
         if (it->get()->getMatchType() != Location::MatchType::PREFIX)
         {
-            if (std::regex_search(source, it->get()->getRegex()))
+            std::regex reg = it->get()->getRegex();
+            if (std::regex_search(source, reg))
                 found_location.emplace(i, *it);
         }
         ++it;

@@ -61,6 +61,7 @@ class ServerResponseHandler
             const std::string& script_path);
         e_server_request_return sendRedirectResponse(int client_fd, uint16_t code, std::string& location);
         void fillStatusCodes();
+        e_server_request_return removeFile(int client_fd, s_client_data& client_data);
 };
 
 #endif

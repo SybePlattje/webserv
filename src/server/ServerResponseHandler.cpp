@@ -9,6 +9,7 @@
 #include <cstring>
 #include <fcntl.h>
 #include <unistd.h>
+#include <filesystem>
 
 ServerResponseHandler::ServerResponseHandler(const std::vector<std::shared_ptr<Location>>& locations, const std::string& root, const std::map<uint16_t, std::string>& error_map) : SRV_(locations, root), error_pages_(error_map)
 {
@@ -46,7 +47,7 @@ e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_c
         return SRH_INCORRECT_HTTP_VERSION;
     
     std::vector<std::string> token_location = sourceChunker(client_data.request_source);
-    e_responeValReturn nr = SRV_.checkLocations(token_location, file_path, location_it);
+    e_responeValReturn nr = SRV_.checkLocations(token_location, file_path, location_it, client_data);
     if (nr != RVR_OK)
     {
         if (nr != RVR_IS_REGEX)
@@ -74,6 +75,12 @@ e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_c
         if (location_it->get()->isCGIExtension(ext)) {
             return handleCGI(client_fd, client_data, *location_it->get(), file_path);
         }
+    }
+
+    // check delete
+    if (client_data.request_method == "DELETE")
+    {
+        return removeFile(client_fd, client_data);
     }
 
     // TODO remove when done with project is for testing timeout
@@ -653,4 +660,16 @@ void ServerResponseHandler::fillStatusCodes()
         {510, "510 Not Extended"},
         {511, "511 Network Authentication Required"},
     };
+}
+
+
+e_server_request_return ServerResponseHandler::removeFile(int client_fd, s_client_data& client_data)
+{
+    if (!SRV_.fileExists(client_data.request_source.substr(1)))
+        return setupResponse(client_fd, 404, client_data);
+    if (!SRV_.filePermission(client_data.request_source.substr(1)))
+        return setupResponse(client_fd, 403, client_data);
+    if (!std::filesystem::remove(client_data.request_source.substr(1)))
+        return setupResponse(client_fd, 500, client_data);
+    return setupResponse(client_fd, 200, client_data, "/");
 }

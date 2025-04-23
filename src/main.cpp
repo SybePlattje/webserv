@@ -8,13 +8,13 @@ int main(int argc, char* argv[]) {
     (void) argc;
     try {
         std::vector<std::shared_ptr<Config>> configs = ConfigLoader::load(argv[1]);
-        // Server server(configs);
-        // int nr = server.setupEpoll();
-        // if (nr != 0)
-        //     return nr * -1;
-        // nr = server.serverLoop();
-        // return nr * -1;
-        ConfigPrinter::printConfigs(std::cout, configs);
+        Server server(configs);
+        int nr = server.setupEpoll();
+        if (nr != 0)
+            return nr * -1;
+        nr = server.serverLoop();
+        return nr * -1;
+        // ConfigPrinter::printConfigs(std::cout, configs);
     }
     catch (const ConfigParser::ParseError& e) {
         std::cerr << "Parse error: " << e.what() << "\n";
