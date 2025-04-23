@@ -518,7 +518,10 @@ e_server_request_return ServerResponseHandler::handleCGI(
             client_data.config_.get()->getPort()
         );
 
-        if (status_code != 0) {
+        if (status_code == -2) {
+            return setupResponse(client_fd, 504, client_data);
+        }
+        else if (status_code != 0) {
             return setupResponse(client_fd, 500, client_data);
         }
 

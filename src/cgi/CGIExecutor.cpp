@@ -5,6 +5,10 @@
 #include <cstring>
 #include <sstream>
 #include <fcntl.h>
+#include <thread>
+
+
+#define TIMEOUT_MS 20000 // 20 seconds
 
 std::pair<int, std::string> CGIExecutor::execute(
     const std::string& interpreter,
@@ -62,21 +66,51 @@ std::pair<int, std::string> CGIExecutor::execute(
     // Write request body to script if present
     if (!request_body.empty()) {
         if (write(input_pipe_[1], request_body.data(), request_body.length()) == -1) {
-            close(input_pipe_[1]);
+            close(input_pipe_[1]); close(output_pipe_[0]);
+            kill(pid, SIGKILL);
+            int status;
+            waitpid(pid, &status, 0);
             throw std::runtime_error("Write failed: to CGI has not been successful\n");
         }
     }
     close(input_pipe_[1]);  // Close after writing
-    int status;
-    waitpid(pid, &status, 0);
-    int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+
+    int exit_code = wait_for_child_with_timeout(pid);
 
     // Read script output
     std::string output = readOutput();
 
-    // Wait for child and get status
-
     return {exit_code, output};
+}
+
+int CGIExecutor::wait_for_child_with_timeout(pid_t pid)
+{
+    const int interval_ms = 100;
+    const int timeout_ms = TIMEOUT_MS;
+
+    int elapsed = 0;
+    int status;
+
+    while (true) {
+        pid_t result = waitpid(pid, &status, WNOHANG);
+        if (result == -1) {
+            return static_cast<int>(CGIExitStatus::Error);
+        }
+        if (result == pid) {
+            if (WIFEXITED(status)) return WEXITSTATUS(status);
+            if (WIFSIGNALED(status)) return static_cast<int>(CGIExitStatus::KilledBySignal);
+            return static_cast<int>(CGIExitStatus::Error);
+        }
+
+        if (elapsed >= timeout_ms) {
+            kill(pid, SIGKILL);
+            waitpid(pid, &status, 0);
+            return static_cast<int>(CGIExitStatus::Timeout);
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(interval_ms));
+        elapsed += interval_ms;
+    }
 }
 
 void CGIExecutor::setupPipes()

@@ -6,6 +6,16 @@
 #include <vector>
 
 /**
+ * @brief CGI exit status enum
+ */
+enum class CGIExitStatus {
+    Success = 0,
+    Timeout = -2,
+    Error = -1,
+    KilledBySignal = -3
+};
+
+/**
  * @brief Handles CGI script execution and I/O management
  * 
  * This class is responsible for:
@@ -62,6 +72,14 @@ private:
      * @return Script's output as string
      */
     std::string readOutput();
+
+    /**
+     * @brief Wait for child process to finish with timeout handling
+     * 
+     * @param pid PID of CGI child process
+     * @return int exit_code
+     */
+    int wait_for_child_with_timeout(pid_t pid);
 };
 
 #endif // CGI_EXECUTOR_HPP
