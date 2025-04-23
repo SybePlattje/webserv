@@ -179,7 +179,7 @@ private:
     std::string path_;                              ///< URL path this location handles
     MatchType match_type_;                          ///< Type of location matching
     std::string root_;                              ///< Root directory for serving files
-    std::string index_ = "index.html";              ///< Default index file
+    std::string index_;                             ///< Default index file
     std::vector<std::string> allowed_methods_{"GET"}; ///< Default: GET only
     bool autoindex_ = false;                        ///< Default: directory listing off
     ReturnDirective return_directive_;              ///< Return/redirect configuration
