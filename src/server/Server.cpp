@@ -535,8 +535,6 @@ int Server::checkForTimeout(int fd, epoll_event& event)
                 std::cerr << "Timeout read failed\n";
                 return -2;
             }
-            // do client timeout
-            // TODO add cgi killer
             std::vector<configInfo>::iterator it = config_info_.begin();
             std::vector<configInfo>::iterator ite = config_info_.end();
             while (it != ite)
