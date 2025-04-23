@@ -220,7 +220,7 @@ e_reponses ServerRequestHandler::handleChunkedRequest(size_t body_start, std::st
         pos = chunk_size_end + 2; // move past \r\n
         if (chunk_size == 0) break; // end of chunks
 
-        //ensure the full chunk is recieved
+        // ensure the full chunk is recieved
         while (request_buffer.size() < pos + chunk_size + 2)
         {
             int recv_return = useRecv(client_fd, buffer, request_buffer);
@@ -228,7 +228,7 @@ e_reponses ServerRequestHandler::handleChunkedRequest(size_t body_start, std::st
             if (recv_return == 0) break;
         }
 
-        //extract chunk data
+        // extract chunk data
         std::string chunk_data = request_buffer.substr(pos, chunk_size);
         decoded_body.append(chunk_data);
         pos += chunk_size + 2; // move past \r\n

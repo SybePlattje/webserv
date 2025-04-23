@@ -81,13 +81,6 @@ e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_c
     {
         return SRH_DO_TIMEOUT;
     }
-    // Check for CGI before file handling
-    if (location_it->get()->hasCGI()) {
-        std::string ext = getContentType(file_path);
-        if (location_it->get()->isCGIExtension(ext)) {
-            return handleCGI(client_fd, client_data, *location_it->get(), file_path);
-        }
-    }
 
     nr = SRV_.checkFile(file_path, location_it);
     if (nr != RVR_OK)
@@ -331,7 +324,6 @@ e_server_request_return ServerResponseHandler::sendResponse(int client_fd, const
         }
         else
             response << "Content-Length: 0\r\n\r\n";
-        // std::cout << "RESPONSE IS [" << response.str() << "]" << std::endl;
         if (send(client_fd, response.str().c_str(), response.str().size(), 0) <= 0)
             return SRH_SEND_ERROR;
         if (content)
@@ -515,8 +507,6 @@ e_server_request_return ServerResponseHandler::handleCGI(
         if (query_pos != std::string::npos) {
             query_string = client_data.request_source.substr(query_pos + 1);
         }
-
-        //std::cout << "IN HANDLE CGI REQIEST_BODY IS [" << client_data.request_body << "]" << std::endl;
 
         // Execute CGI script
         auto [status_code, response] = handler.handleRequest(

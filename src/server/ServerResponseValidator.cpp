@@ -260,11 +260,6 @@ const std::string& ServerResponseValidator::getRoot() const
  */
 void ServerResponseValidator::setPossibleLocation(size_t token_size, std::vector<std::string>& token_location, std::map<size_t, std::shared_ptr<Location>>& found_location)
 {
-    // if (token_size > 0 && token_location.at(token_size - 1).find(".") != std::string::npos)
-    // {
-    //     token_location.insert(token_location.begin(), token_location.at(token_size - 1));
-    //     ++token_size;
-    // }
     if (token_size == 1 && token_location.at(0) == "/")
     {
         for (std::shared_ptr<Location> location : locations_)
@@ -272,7 +267,6 @@ void ServerResponseValidator::setPossibleLocation(size_t token_size, std::vector
             if (location && location->getPath() == "/")
                 found_location.emplace(0, location);
         }
-        //found_location.insert(std::pair<size_t, std::string>(0, locations_->at(0)));
     }
     else
     {

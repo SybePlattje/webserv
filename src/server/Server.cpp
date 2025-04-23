@@ -630,7 +630,6 @@ int Server::handleReadEvents(int fd, epoll_event& event)
             close(fd);
             return -1;
         }
-        // requestHandler_.removeNodeFromRequest(fd);
         return 0;
     }
     return -2;
