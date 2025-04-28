@@ -310,7 +310,7 @@ int Server::listenLoop()
     epoll_event events[MAX_EVENTS];
     while (true)
     {
-        int event_count = epoll_wait(epoll_fd_, events, MAX_EVENTS, 0);
+        int event_count = epoll_wait(epoll_fd_, events, MAX_EVENTS, -1);
         for (int i = 0; i < event_count; ++i)
         {
             int nr = checkEvents(events[i]);
