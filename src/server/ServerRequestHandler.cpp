@@ -5,8 +5,25 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sstream>
+#include <cstring>
 
-s_client_data::s_client_data(std::shared_ptr<Config>& conf) : config_(conf) {}
+s_client_data::s_client_data(std::shared_ptr<Config>& conf) : config_(conf)
+{
+    request_type = "";
+    request_header = "";
+    request_body = "";
+    request_method = "";
+    request_source = "";
+    http_version = "";
+    full_request = "";
+    bytes_read = 0;
+    total_size_to_read = 0;
+    chunked = false;
+    client_error = 0;
+    read_return = 0;
+    send_return = 0;
+    error_send = 0;
+}
 
 s_client_data::s_client_data(const s_client_data& other) : config_(other.config_)
 {
@@ -16,6 +33,14 @@ s_client_data::s_client_data(const s_client_data& other) : config_(other.config_
     request_method = other.request_method;
     request_source = other.request_source;
     chunked = other.chunked;
+    http_version = other.http_version;
+    full_request = other.full_request;
+    bytes_read = other.bytes_read;
+    total_size_to_read = other.total_size_to_read;
+    client_error = other.client_error;
+    read_return = other.read_return;
+    send_return = other.send_return;
+    error_send = other.error_send;
 }
 
 ServerRequestHandler::ServerRequestHandler(uint64_t client_body_size) 
@@ -78,15 +103,39 @@ e_reponses ServerRequestHandler::readRequest(int client_fd, std::string& request
     ssize_t bytes_recieved = 0;
     if (client_fd == stdout_pipe_[0] || client_fd == stderr_pipe_[0])
         return HANDLE_COUT_CERR_OUTPUT;
-    while ((bytes_recieved = recv(client_fd, buffer, BUFFER_SIZE, 0)) > 0)
+    s_client_data* data = getRequest(client_fd);
+    bytes_recieved = recv(client_fd, buffer, BUFFER_SIZE, MSG_DONTWAIT);
+    if (bytes_recieved == -1)
     {
-        request_buffer.append(buffer, bytes_recieved);
-        size_t header_end = request_buffer.find("\r\n\r\n");
-        if (header_end != std::string::npos)
-            return readHeader(request_buffer, header_end, client_fd, buffer);
+        return RECV_EMPTY;
     }
-    std::cerr << "read request empty at end\n";
-    return READ_REQUEST_EMPTY;
+    else if (bytes_recieved == 0)
+    {
+        size_t header_end = data->full_request.find("\r\n\r\n");
+        if (header_end != std::string::npos)
+            return readHeader(data->full_request, header_end, client_fd);
+        std::cerr << "read request empty at end\n";
+        return READ_REQUEST_EMPTY;
+    }
+    else
+    {
+        if ((static_cast<uint64_t>(data->bytes_read) + static_cast<uint64_t>(bytes_recieved)) > data->config_.get()->getClientMaxBodySize())
+            return READ_HEADER_BODY_TOO_LARGE;
+        data->full_request.append(buffer, bytes_recieved);
+        data->bytes_read += bytes_recieved;
+        bzero(buffer, sizeof(buffer));
+        return CONTINUE_READING;
+    }
+
+    // while ((bytes_recieved = recv(client_fd, buffer, BUFFER_SIZE, 0)) > 0)
+    // {
+    //     request_buffer.append(buffer, bytes_recieved);
+    //     size_t header_end = request_buffer.find("\r\n\r\n");
+    //     if (header_end != std::string::npos)
+    //         return readHeader(request_buffer, header_end, client_fd, buffer);
+    // }
+    // std::cerr << "read request empty at end\n";
+    // return READ_REQUEST_EMPTY;
 }
 
 /**
@@ -117,13 +166,12 @@ e_reponses ServerRequestHandler::handleClient(std::string& request_buffer, epoll
  * @param request_buffer the string holding header info
  * @param header_end position of where the header ands
  * @param client_fd the file descriptor of the header
- * @param buffer the last bytes read
  * @return E_ROK when done,
  * @return NO_CONTENT_TYPE if no content type is in the header,
  * @return CLIENT_REQUEST_DATA_EMPTY if the headers doesnt have a mehtod, source or HTTPVersion,
  * @return READ_HEADER_BODY_TOO_LARGE if the content length of the body is larger than what we allow
  */
-e_reponses ServerRequestHandler::readHeader(std::string& request_buffer, size_t header_end, int client_fd, char buffer[])
+e_reponses ServerRequestHandler::readHeader(std::string& request_buffer, size_t header_end, int client_fd)
 {
     std::cout << request_buffer << std::endl;
 
@@ -139,7 +187,7 @@ e_reponses ServerRequestHandler::readHeader(std::string& request_buffer, size_t 
 
     // check if it's chunked transfer encoding
     if (headers.find("Transfer-Encoding: chunked") != std::string::npos || headers.find("TE: chunked") != std::string::npos)
-        return handleChunkedRequest(body_start, request_buffer, client_fd, buffer);
+        return handleChunkedRequest(body_start, request_buffer, client_fd);
     size_t content_length_body = headers.find("Content-Length: ");
     if (content_length_body != std::string::npos)
     {
@@ -149,7 +197,7 @@ e_reponses ServerRequestHandler::readHeader(std::string& request_buffer, size_t 
         stream >> size;
         if (size > max_size_)
             return READ_HEADER_BODY_TOO_LARGE;
-        return handleContentLength(size, request_buffer, body_start, client_fd, buffer);
+        return handleContentLength(size, request_buffer, body_start, client_fd);
     }
     return E_ROK;
 }
@@ -198,11 +246,10 @@ e_reponses ServerRequestHandler::setMethodSourceHttpVersion(std::string& request
  * @param body_start position where the body of the request starts
  * @param request_buffer the string holding the entire request
  * @param client_fd the file descriptor of the client
- * @param buffer the buffer being used to read into the request
  * @return E_ROK when done,
  * @return RECV_FAILED when reading ussing recv() failed 
  */
-e_reponses ServerRequestHandler::handleChunkedRequest(size_t body_start, std::string& request_buffer, int client_fd, char buffer[])
+e_reponses ServerRequestHandler::handleChunkedRequest(size_t body_start, std::string& request_buffer, int client_fd)
 {
     std::string decoded_body = "";
     size_t pos = body_start;
@@ -210,24 +257,10 @@ e_reponses ServerRequestHandler::handleChunkedRequest(size_t body_start, std::st
     {
         // read chunk size
         size_t chunk_size_end = request_buffer.find("\r\n", pos);
-        if (chunk_size_end == std::string::npos)
-        {
-            if (useRecv(client_fd, buffer, request_buffer) == -1) return RECV_FAILED;
-            continue;
-        }
         std::string chunk_size_hex = request_buffer.substr(pos, chunk_size_end - pos);
         int chunk_size = std::stoi(chunk_size_hex, nullptr, 16);
         pos = chunk_size_end + 2; // move past \r\n
         if (chunk_size == 0) break; // end of chunks
-
-        // ensure the full chunk is recieved
-        while (request_buffer.size() < pos + chunk_size + 2)
-        {
-            int recv_return = useRecv(client_fd, buffer, request_buffer);
-            if (recv_return == -1) return RECV_FAILED;
-            if (recv_return == 0) break;
-        }
-
         // extract chunk data
         std::string chunk_data = request_buffer.substr(pos, chunk_size);
         decoded_body.append(chunk_data);
@@ -274,44 +307,12 @@ int ServerRequestHandler::useRecv(int client_fd, char buffer[], std::string& req
  * @param request_buffer the string holding the entire request
  * @param body_start the position where the body starts in request_buffer
  * @param client_fd the file descriptor of the client
- * @param buffer the buffer being used to read the request body from the client
  * @return E_ROK when done,
  * @return RECV_FAILED if useRecv() failed 
  */
-e_reponses ServerRequestHandler::handleContentLength(size_t size, std::string& request_buffer, size_t body_start, int client_fd, char buffer[])
+e_reponses ServerRequestHandler::handleContentLength(size_t size, std::string& request_buffer, size_t body_start, int client_fd)
 {
     // std::cout << "BODY START AT BEGIN IS [" << body_start << "] SIZE AT START IS [" << size << "]\n";
-    while (true)
-    {
-        // std::cout << "body_start + size is [" << body_start + size << "] request_buffer.size() is [" << request_buffer.size() << "]\n";;
-        if (request_buffer.size() < body_start + size)
-        {
-            ssize_t bytes_read = recv(client_fd, buffer, BUFFER_SIZE - 1, MSG_DONTWAIT);
-            if (bytes_read == -1)
-            {
-                std::cerr << "recv failed and returned -1\n";
-                return RECV_FAILED;
-            }
-            else if (bytes_read == 0)
-                break;
-            else
-            {
-                try
-                {
-                    request_buffer.append(buffer, bytes_read);
-                    if (request_buffer.size() >= size + body_start)
-                        break;
-                }
-                catch (std::exception& e)
-                {
-                    std::cerr << "append failed with message: " << e.what() << "\n";
-                    return EXCEPTION;
-                }
-            }
-        }
-        else
-            break;
-    }
     getRequest(client_fd)->request_body = request_buffer.substr(body_start, size);
     // std::cout << "request body at and is [" << getRequest(client_fd).request_body << "]" << std::endl;
     return E_ROK;

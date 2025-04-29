@@ -183,16 +183,23 @@ void ServerResponseHandler::handleCoutErrOutput(int fd)
     ssize_t bytes_recieved = 0;
     std::string request_buffer = "";
     char buffer[BUFFER_SIZE] = {0};
-    while ((bytes_recieved = read(fd, buffer, BUFFER_SIZE - 1)) > 0)
+    bytes_recieved = read(fd, buffer, BUFFER_SIZE -1);
+    if (bytes_recieved == -1)
     {
-        buffer[bytes_recieved] = '\0';
-        request_buffer.append(buffer, bytes_recieved);
+        return;
     }
-    if (fd == stdout_pipe_[0])
-        request_buffer.insert(0, "[Captured stdcout]: ");
+    else if (bytes_recieved == 0)
+    {
+        return;
+    }
     else
-        request_buffer.insert(0, "[Captured stdcerr]: ");
-    logMsg(request_buffer.c_str(), fd);
+    {
+        if (fd == stdout_pipe_[0])
+            request_buffer.insert(0, "[Capture stdcout]: ");
+        else
+            request_buffer.insert(0, "[Captured stdcerr]: ");
+        logMsg(request_buffer.data(), fd);
+    }
 }
 
 // private functions
@@ -331,13 +338,13 @@ e_server_request_return ServerResponseHandler::sendResponse(int client_fd, const
         }
         else
             response << "Content-Length: 0\r\n\r\n";
-        if (send(client_fd, response.str().c_str(), response.str().size(), 0) <= 0)
-            return SRH_SEND_ERROR;
         if (content)
         {
-            if (sendFile(client_fd, file_stream, file_size) != SRH_OK)
+            if (sendFile(client_fd, file_stream, file_size, response) != SRH_OK)
                 return SRH_SEND_ERROR;
         }
+        if (send(client_fd, response.str().c_str(), response.str().size(), 0) <= 0)
+            return SRH_SEND_ERROR;
     }
     return SRH_OK;
 }
@@ -416,14 +423,18 @@ e_server_request_return ServerResponseHandler::sendChunkedResponse(int client_fd
  * @return SRH_OK when done,
  * @return SRH_SEND_ERROR when send() fails
  */
-e_server_request_return ServerResponseHandler::sendFile(int client_fd, std::ifstream& file_stream, std::streamsize size)
+e_server_request_return ServerResponseHandler::sendFile(int client_fd, std::ifstream& file_stream, std::streamsize size, std::ostringstream& response)
 {
     char buffer[BUFFER_SIZE] = {0};
-    while(file_stream.read(buffer, size) || file_stream.gcount() > 0)
-    {
-        if (send(client_fd, buffer, file_stream.gcount(), MSG_NOSIGNAL) <= 0)
-            return SRH_SEND_ERROR;
-    }
+    response << file_stream.rdbuf();
+    size_t bytes_to_send = response.str().size();
+    ssize_t bytes_send = send(client_fd, response.str().data(), bytes_to_send, MSG_NOSIGNAL);
+    
+    // while(file_stream.read(buffer, size) || file_stream.gcount() > 0)
+    // {
+    //     if (send(client_fd, buffer, file_stream.gcount(), MSG_NOSIGNAL) <= 0)
+    //         return SRH_SEND_ERROR;
+    // }
     return SRH_OK;
 }
 

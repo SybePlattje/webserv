@@ -42,7 +42,7 @@ class ServerResponseHandler
         e_server_request_return sendResponse(int client_fd, const std::string& status, const std::string& file_location, const s_client_data& data, bool d_list = false);
         std::string getContentType(const std::string& file_path);
         e_server_request_return sendChunkedResponse(int client_fd, std::ifstream& file_stream);
-        e_server_request_return sendFile(int client_fd, std::ifstream& file_stream, std::streamsize size);
+        e_server_request_return sendFile(int client_fd, std::ifstream& file_stream, std::streamsize size, std::ostringstream& response);
         std::vector<std::string> sourceChunker(std::string& source);
         void logMsg(const char* msg, int fd);
 

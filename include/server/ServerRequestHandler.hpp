@@ -21,6 +21,7 @@ enum e_reponses {
     CLIENT_REQUEST_DATA_EMPTY,
     RECV_FAILED,
     RECV_EMPTY,
+    CONTINUE_READING,
     EXCEPTION,
 };
 
@@ -34,8 +35,15 @@ struct s_client_data
     std::string request_method;
     std::string request_source;
     std::string http_version;
-    bool chunked = false;
+    std::string full_request;
+    size_t bytes_read;
+    size_t total_size_to_read;
+    bool chunked;
     std::shared_ptr<Config>& config_;
+    int client_error;
+    ssize_t read_return;
+    ssize_t send_return;
+    bool error_send;
 };
 
 class ServerRequestHandler
@@ -56,12 +64,12 @@ class ServerRequestHandler
         int stdout_pipe_[2];
         int stderr_pipe_[2];
 
-        e_reponses readHeader(std::string& request_buffer, size_t header_end, int client_fd, char buffer[]);
+        e_reponses readHeader(std::string& request_buffer, size_t header_end, int client_fd);
         e_reponses setContentTypeRequest(std::string& request_buffer, size_t header_end, int client_fd);
         e_reponses setMethodSourceHttpVersion(std::string& request_buffer, int client_fd);
-        e_reponses handleChunkedRequest(size_t body_start, std::string& request_buffer, int client_fd, char buffer[]);
+        e_reponses handleChunkedRequest(size_t body_start, std::string& request_buffer, int client_fd);
         int useRecv(int client_fd, char buffer[], std::string& request_buffer);
-        e_reponses handleContentLength(size_t size, std::string& request_buffer, size_t body_start, int client_fd, char buffer[]);
+        e_reponses handleContentLength(size_t size, std::string& request_buffer, size_t body_start, int client_fd);
 };
 
 #endif
