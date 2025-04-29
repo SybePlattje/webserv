@@ -165,7 +165,7 @@ e_reponses ServerRequestHandler::readHeader(std::string& request_buffer, size_t 
  */
 e_reponses ServerRequestHandler::setContentTypeRequest(std::string& request_buffer, size_t header_end, int client_fd)
 {
-    if (request_.at(client_fd).request_method == "GET")
+    if (request_.at(client_fd).request_method != "POST")
         return E_ROK;
     size_t request_type_pos = request_buffer.find("Content-Type: ");
     if (request_type_pos != std::string::npos)

@@ -108,7 +108,15 @@ e_responeValReturn ServerResponseValidator::checkLocations(std::vector<std::stri
         }
     }
     if (file_path.empty())
+    {
+        // setPossibleRegexLocation(found_location, client_data);
+        // if (!found_location.empty())
+        // {
+        //     location_it = std::next(locations_.begin(), found_location.begin()->first);
+        //     return RVR_IS_REGEX;
+        // }
         return RVR_NOT_FOUND;
+    }
     return RVR_OK;
 }
 

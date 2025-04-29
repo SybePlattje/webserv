@@ -13,6 +13,7 @@
 			<input type="file" name="file" id="file"><br>
 			<button type="submit">Upload</button>
 		</form>
+        <br><br>
         <form action="/timeout" method="post">
             <input type="hidden" name="hiddenField", id="hiddenField">
             <button type="submit">Test timeout</button>
@@ -21,12 +22,35 @@
             <label for="text">from /red to /test</label><br>
             <button type="submit">Test Redirect</button>
         </form>
+        <form action="/upload" method="get" id="showUploadedFiles">
+            <button type="submit">uploaded files</button>
+        </form>
+        <form action="/ReturnNegative1.sh" method="get" id="Neg1">
+            <label for="text">Test broken cgi</label><br>
+            <button type="submit">test</button>
+        </form>
+        <form action="/IniniteLoop.sh" method="get" id="infLoop">
+            <label for="text">Test infinite loop cgi</label><br>
+            <button type="submit">test</button>
+        </form>
         </body>
 	</body>
 </html>
 
 <script>
     document.getElementById("redirectForm").addEventListener("submit", function(event) {
+        event.preventDefault();
+        window.location.href = this.action;
+    });
+    document.getElementById("showUploadedFiles").addEventListener("submit", function(event) {
+        event.preventDefault();
+        window.location.href = this.action;
+    });
+    document.getElementById("Neg1").addEventListener("submit", function(event) {
+        event.preventDefault();
+        window.location.href = this.action;
+    });
+    document.getElementById("infLoop").addEventListener("submit", function(event) {
         event.preventDefault();
         window.location.href = this.action;
     });

@@ -1,5 +1,5 @@
 <?php
-define("FILE_UPLOAD_LOCATION", "upload/"); // key, value
+define("FILE_UPLOAD_LOCATION", "example/upload/"); // key, value
 // $raw_data = $argv[1];
 
 $raw_data = '';

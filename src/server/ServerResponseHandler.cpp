@@ -665,11 +665,11 @@ void ServerResponseHandler::fillStatusCodes()
 
 e_server_request_return ServerResponseHandler::removeFile(int client_fd, s_client_data& client_data)
 {
-    if (!SRV_.fileExists(client_data.request_source.substr(1)))
+    if (!SRV_.fileExists(client_data.config_.get()->getRoot().substr(1) + client_data.request_source))
         return setupResponse(client_fd, 404, client_data);
-    if (!SRV_.filePermission(client_data.request_source.substr(1)))
+    if (!SRV_.filePermission(client_data.config_.get()->getRoot().substr(1) + client_data.request_source))
         return setupResponse(client_fd, 403, client_data);
-    if (!std::filesystem::remove(client_data.request_source.substr(1)))
+    if (!std::filesystem::remove(client_data.config_.get()->getRoot().substr(1) + client_data.request_source))
         return setupResponse(client_fd, 500, client_data);
     return setupResponse(client_fd, 200, client_data, "/");
 }
