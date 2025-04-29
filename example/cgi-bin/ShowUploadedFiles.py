@@ -34,7 +34,14 @@ def generateFormDirectory():
 
     html_content += """
 </ul>
+<form action="/" method="get" id="back">
+    <button type="submit">back to home</button>
+</form>
 <script>
+    document.getElementById("back").addEventListener("submit", function(event) {
+        event.preventDefault();
+        window.location.href = this.action;
+    });
     document.addEventListener("DOMContentLoaded", function() {
     const buttons = document.querySelectorAll('.delete-btn');
     buttons.forEach(button => {

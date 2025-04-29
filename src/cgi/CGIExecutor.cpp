@@ -28,6 +28,7 @@ std::pair<int, std::string> CGIExecutor::execute(
         // Close unused pipe ends
         close(input_pipe_[1]);   // Close write end of input
         close(output_pipe_[0]);  // Close read end of output
+        close(error_pipe_[0]);  // Cloase read end of error
 
         // Redirect stdin to input pipe
         if (dup2(input_pipe_[0], STDIN_FILENO) == -1) {
@@ -36,6 +37,11 @@ std::pair<int, std::string> CGIExecutor::execute(
 
         // Redirect stdout to output pipe
         if (dup2(output_pipe_[1], STDOUT_FILENO) == -1) {
+            exit(EXIT_FAILURE);
+        }
+
+        // Redirect stderr to error pipe
+        if (dup2(error_pipe_[1], STDERR_FILENO) == -1) {
             exit(EXIT_FAILURE);
         }
 
@@ -62,11 +68,12 @@ std::pair<int, std::string> CGIExecutor::execute(
     // Parent process
     close(input_pipe_[0]);   // Close read end of input
     close(output_pipe_[1]);  // Close write end of output
+    close(error_pipe_[1]);  // Close write end of error
 
     // Write request body to script if present
     if (!request_body.empty()) {
         if (write(input_pipe_[1], request_body.data(), request_body.length()) == -1) {
-            close(input_pipe_[1]); close(output_pipe_[0]);
+            close(input_pipe_[1]); close(output_pipe_[0]); close(error_pipe_[0]);
             kill(pid, SIGKILL);
             int status;
             waitpid(pid, &status, 0);
@@ -79,6 +86,8 @@ std::pair<int, std::string> CGIExecutor::execute(
 
     // Read script output
     std::string output = readOutput();
+    if (output.empty())
+        output = readError();
 
     return {exit_code, output};
 }
@@ -115,7 +124,7 @@ int CGIExecutor::wait_for_child_with_timeout(pid_t pid)
 
 void CGIExecutor::setupPipes()
 {
-    if (pipe(input_pipe_) == -1 || pipe(output_pipe_) == -1) {
+    if (pipe(input_pipe_) == -1 || pipe(output_pipe_) == -1 || pipe(error_pipe_) == -1) {
         throw std::runtime_error("Pipe creation failed: " + std::string(strerror(errno)));
     }
 
@@ -129,6 +138,8 @@ void CGIExecutor::closePipes()
     close(input_pipe_[1]);
     close(output_pipe_[0]);
     close(output_pipe_[1]);
+    close(error_pipe_[0]);
+    close(error_pipe_[1]);
 }
 
 std::vector<std::string> CGIExecutor::prepareEnvironment(
@@ -156,4 +167,18 @@ std::string CGIExecutor::readOutput()
 
     close(output_pipe_[0]);
     return output.str();
+}
+
+std::string CGIExecutor::readError()
+{
+    std::stringstream error;
+    char buffer[4096];
+    ssize_t bytes_read;
+
+    while ((bytes_read = read(error_pipe_[0], buffer, sizeof(buffer))) > 0) {
+        error.write(buffer, bytes_read);
+    }
+
+    close(error_pipe_[0]);
+    return error.str();
 }

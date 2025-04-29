@@ -47,6 +47,7 @@ private:
     // Pipe management
     int input_pipe_[2];   // For writing to script
     int output_pipe_[2];  // For reading from script
+    int error_pipe_[2];   // For errors from script
 
     /**
      * @brief Set up pipes for communication with CGI script
@@ -80,6 +81,13 @@ private:
      * @return int exit_code
      */
     int wait_for_child_with_timeout(pid_t pid);
+
+    /**
+     * @brief Read the error messeges from the CGI script
+     * 
+     * @return Script's error as string
+     */
+    std::string readError();
 };
 
 #endif // CGI_EXECUTOR_HPP
