@@ -19,13 +19,13 @@ make
 
 Run the server using the defualt config:
 ```bash
-./webserve
+./webserv
 ```
 
 Or specify a config file frim the `configtest` directory:
 
 ``` bash
-./webserve confictest/FILE.conf
+./webserv confictest/FILE.conf
 ```
 
 ---
