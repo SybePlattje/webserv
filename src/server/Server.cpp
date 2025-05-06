@@ -378,25 +378,21 @@ int Server::checkEvents(epoll_event event)
         if (it == ite)
             return -2;
         e_server_request_return nr = it->responseHandler_.handleResponse(fd, *(it->requestHandler_.getRequest(fd)), it->config_->getLocations());
-        // TODO remove if statement for eval
-        if (nr != SRH_DO_TIMEOUT && nr != SRH_OK)
+        if (nr == SRH_INCORRECT_HTTP_VERSION)
         {
-            if (nr == SRH_INCORRECT_HTTP_VERSION)
-            {
-                e_server_request_return srhr = it->responseHandler_.setupResponse(fd, 505, *(it->requestHandler_.getRequest(fd)));
-                doEpollCtl(EPOLL_CTL_DEL, fd, &event);
-                doEpollCtl(EPOLL_CTL_DEL, client_timers_[fd], nullptr);
-                close(fd);
-                close(client_timers_[fd]);
-                it->requestHandler_.removeNodeFromRequest(fd);
-                client_timers_.erase(fd);
-                if (srhr != SRH_OK)
-                    return -2;
-                return 0;
-            }
-            else
-                it->responseHandler_.setupResponse(fd, 500, *(it->requestHandler_.getRequest(fd)));
+            e_server_request_return srhr = it->responseHandler_.setupResponse(fd, 505, *(it->requestHandler_.getRequest(fd)));
+            doEpollCtl(EPOLL_CTL_DEL, fd, &event);
+            doEpollCtl(EPOLL_CTL_DEL, client_timers_[fd], nullptr);
+            close(fd);
+            close(client_timers_[fd]);
+            it->requestHandler_.removeNodeFromRequest(fd);
+            client_timers_.erase(fd);
+            if (srhr != SRH_OK)
+                return -2;
+            return 0;
         }
+        else
+            it->responseHandler_.setupResponse(fd, 500, *(it->requestHandler_.getRequest(fd)));
         doEpollCtl(EPOLL_CTL_DEL, fd, &event);
         doEpollCtl(EPOLL_CTL_DEL, client_timers_[fd], nullptr);
         close(fd);

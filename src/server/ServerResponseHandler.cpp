@@ -83,12 +83,6 @@ e_server_request_return ServerResponseHandler::handleResponse(int client_fd, s_c
         return removeFile(client_fd, client_data);
     }
 
-    // TODO remove when done with project is for testing timeout
-    if (location_it->get()->getPath() == "/timeout")
-    {
-        return SRH_DO_TIMEOUT;
-    }
-
     nr = SRV_.checkFile(file_path, location_it);
     if (nr != RVR_OK)
     {
